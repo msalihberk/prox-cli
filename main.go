@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"prox-cli/commands"
 	"strings"
@@ -12,8 +11,8 @@ func main() {
 }
 func controlArguments() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: prox [command] <arguments>")
-		fmt.Println("Run 'prox help' for a list of available commands.")
+		commands.PrintMessage("Usage: prox [command] <arguments>")
+		commands.PrintMessage("Run 'prox help' for a list of available commands.")
 		os.Exit(1)
 	}
 
@@ -29,19 +28,19 @@ func controlArguments() {
 
 	cmd, exists := commands.CommandRegistry[subCommand]
 	if !exists {
-		fmt.Printf("Unknown command: %s\n", os.Args[1])
+		commands.PrintError("Unknown command: %s", os.Args[1])
 
 		if suggestion := getClosestCommand(subCommand); suggestion != "" {
-			fmt.Printf("Did you mean: '%s'?\n\n", suggestion)
+			commands.PrintInfo("Did you mean: '%s'?\n\n", suggestion)
 		}
 
-		fmt.Println("Run 'prox help' to see all available commands.")
+		commands.PrintMessage("Run 'prox help' to see all available commands.")
 		os.Exit(1)
 	}
 
 	err := cmd.Execute(subArgs)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		commands.PrintError("Error: %v", err)
 		os.Exit(1)
 	}
 }

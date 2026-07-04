@@ -2,7 +2,6 @@ package commands
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 )
 
@@ -12,9 +11,9 @@ func (h HelpCommand) Execute(args []string) error {
 	if len(args) > 0 {
 		return errors.New("Help command does not accept any arguments")
 	}
-	fmt.Printf("\n")
-	fmt.Println("Prox CLI - Available Commands:")
-	fmt.Println("--------------------------------")
+	PrintNewLine()
+	PrintInfo("Prox CLI - Available Commands:")
+	PrintInfo("--------------------------------")
 
 	var commandNames []string
 	for name := range CommandRegistry {
@@ -24,14 +23,14 @@ func (h HelpCommand) Execute(args []string) error {
 
 	for _, name := range commandNames {
 		cmd := CommandRegistry[name]
-		fmt.Printf("  %-10s : %s\n", name, cmd.Description())
+		PrintMessage("  %-10s : %s", name, cmd.Description())
 	}
-	fmt.Printf("\n")
+	PrintNewLine()
 	cmd, exists := CommandRegistry["version"]
 	if exists {
 		cmd.Execute(nil)
 	}
-	fmt.Printf("\n")
+	PrintNewLine()
 
 	return nil
 }
