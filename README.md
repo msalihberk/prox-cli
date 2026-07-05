@@ -6,6 +6,8 @@
 
 A modern Go-based command-line suite for everyday tasks such as encoding, password generation, and network-related checks.
 
+> This project is currently in beta and is being actively shaped around a modular architecture that makes it easy to extend.
+
 <br>
 
 <p>
@@ -22,7 +24,7 @@ A modern Go-based command-line suite for everyday tasks such as encoding, passwo
 
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=for-the-badge&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active%20Development-orange?style=for-the-badge)]()
+[![Status](https://img.shields.io/badge/Status-Beta-yellow?style=for-the-badge)]()
 
 <br><br>
 
@@ -40,7 +42,7 @@ A modern Go-based command-line suite for everyday tasks such as encoding, passwo
 
 prox-cli is a modular command-line application written in Go. It combines a small set of useful utilities into a single, easy-to-use tool for developers, pentesters, and researchers who want quick access to common operations directly from the terminal.
 
-The project is built around a simple command registry, making it straightforward to add new functionality without rewriting the CLI structure.
+The project is built around a simple command registry, making it straightforward to add new functionality without rewriting the CLI structure. This modular design is one of the core strengths of the project, and new commands can be introduced by adding a small command file under the commands directory.
 
 # ✨ Features
 
@@ -64,6 +66,8 @@ prox-cli/
 
 prox-cli requires Go 1.26 or newer.
 
+You can also download prebuilt binaries from the Releases section of the repository when available.
+
 ## 1. Clone the repository
 
 ```bash
@@ -83,6 +87,12 @@ go build -o prox .
 ./prox help
 ```
 
+On Windows, the compiled executable can also be run as:
+
+```bash
+./prox.exe help
+```
+
 You can also run it directly without building:
 
 ```bash
@@ -95,19 +105,22 @@ Here are a few common examples:
 
 ```bash
 # Base64 encode
+ go run . b64 encode test -o test.txt
+
+# Base64 encode
  go run . b64 encode "hello"
 
 # Base64 decode
  go run . b64 decode SGVsbG8=
 
 # Generate a secure random key
- go run . keygen 16
+ ./prox keygen 16
 
 # Show the current public IP helper
- go run . myip
+ ./prox myip
 
 # Show version information
- go run . version
+ ./prox version
 ```
 
 # 🧰 Available Commands
@@ -119,6 +132,48 @@ Here are a few common examples:
 | `keygen` | Generate random secure keys |
 | `myip` | Display public IP information |
 | `version` | Show the current version of the CLI |
+
+# 🧩 Adding Your Own Module
+
+Adding a new module is intentionally simple. Create a new Go file in the commands folder, implement the command interface, and register it in the initializer.
+
+If you enjoy the project while it is still in development, you can help by starring the repository, opening pull requests, or sharing your own modules with the community.
+
+You can also use the built-in argument parser from [commands/getargs.go](commands/getargs.go) to handle positional arguments and flags more cleanly.
+
+**Module Template ⬇️**
+
+```go
+/* Copyright 2026 Mustafa Salih Berk
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. */
+
+package commands
+
+type NameCommand struct{}
+
+func (v NameCommand) Execute(args []string) error {
+	return nil
+}
+
+func (v NameCommand) Description() string {
+	return "Description"
+}
+
+func init() {
+	register("name", NameCommand{})
+}
+```
 
 # 📝 License
 
