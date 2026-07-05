@@ -134,6 +134,7 @@ Here are a few common examples:
 | `keygen` | Generate random secure keys |
 | `myip` | Display public IP information |
 | `version` | Show the current version of the CLI |
+| `hash` | Compute the hash of a given input string or file securely |
 
 # 🧩 Adding Your Own Module
 
