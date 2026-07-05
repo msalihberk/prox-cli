@@ -129,13 +129,14 @@ Here are a few common examples:
 
 | Command | Description |
 | :--- | :--- |
-| `help` | Display the available commands |
-| `b64` | Encode or decode strings to and from Base64 |
-| `keygen` | Generate random secure keys |
-| `myip` | Display public IP information |
-| `version` | Show the current version of the CLI |
-| `hash` | Compute the hash of a given input string or file securely |
+| `help`     | Display the available commands |
+| `b64`      | Encode or decode strings to and from Base64 |
+| `keygen`   | Generate random secure keys |
+| `myip`     | Display public IP information |
+| `version`  | Show the current version of the CLI |
+| `hash`     | Compute the hash of a given input string or file securely |
 | `portscan` | Scan a target host for open ports concurrently |
+| `lorem `   | Generate dummy Lorem Ipsum text for testing and placeholders |
 
 # 🧩 Adding Your Own Module
 
