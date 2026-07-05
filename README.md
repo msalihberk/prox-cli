@@ -4,7 +4,7 @@
 
 ### Lightweight, modular, and extensible CLI toolkit for developers and security researchers
 
-A modern Go-based command-line suite for everyday tasks such as encoding, password generation, and network-related checks.
+A modern Go-based command-line suite for everyday tasks such as encoding, password generation, hashing, port scanning, sample text generation, and AI-assisted terminal help.
 
 > This project is currently in beta and is being actively shaped around a modular architecture that makes it easy to extend.
 
@@ -40,7 +40,7 @@ A modern Go-based command-line suite for everyday tasks such as encoding, passwo
 
 # 🚀 Overview
 
-prox-cli is a modular command-line application written in Go. It combines a small set of useful utilities into a single, easy-to-use tool for developers, pentesters, and researchers who want quick access to common operations directly from the terminal.
+prox-cli is a modular command-line application written in Go. It combines a set of useful utilities into a single, easy-to-use tool for developers, pentesters, and researchers who want quick access to common operations directly from the terminal.
 
 The project is built around a simple command registry, making it straightforward to add new functionality without rewriting the CLI structure. This modular design is one of the core strengths of the project, and new commands can be introduced by adding a small command file under the commands directory.
 
@@ -48,7 +48,10 @@ The project is built around a simple command registry, making it straightforward
 
 - 🔐 Base64 encoding and decoding with optional file input/output support
 - 🧪 Secure random key generation with customizable character sets
-- 🌐 Public IP lookup helper
+- 🧮 Hash generation for MD5, SHA1, SHA256, and SHA512
+- 🌐 Port scanning for a target host and a custom port range
+- 📝 Lorem Ipsum text generation for testing and placeholders
+- 🤖 AI-assisted command generation, command discovery, and log explanation
 - 🧩 Extensible command architecture for future modules
 - 🛠 Clean and minimal Go-based implementation
 
@@ -57,6 +60,7 @@ The project is built around a simple command registry, making it straightforward
 ```text
 prox-cli/
 ├── commands/     # Command implementations
+├── core/         # Shared CLI parser and helpers
 ├── main.go       # CLI entry point
 ├── go.mod        # Go module definition
 ├── LICENSE       # Apache 2.0 License
@@ -103,40 +107,54 @@ go run . help
 
 # 💻 Usage
 
-Here are a few common examples:
+Here are a few common examples using the current command set:
 
 ```bash
-# Generate hash
- ./prox b64 hash --sha256 -s test
-
 # Base64 encode
- ./prox b64 encode "hello"
+./prox b64 encode "hello"
 
-# Portscan
- ./prox b64 portscan SAMPLE_PORT -p 1-500
+# Base64 decode
+./prox b64 decode SGVsbG8=
 
 # Generate a secure random key
- ./prox keygen 16
+./prox keygen 16
 
-# Show the current public IP helper
- ./prox myip
+# Generate a hash from a string
+./prox hash -s test
 
-# Show version information
- ./prox version
+# Generate a hash from a file
+./prox hash -f sample.txt -b
+
+# Scan open ports on a target
+./prox portscan example.com -p 80,443 -w 50 -t 1000
+
+# Generate lorem ipsum text
+./prox lorem -w 12 -p 2
+
+# Use AI helpers (requires PROX_API_KEY)
+
+# Unix / macOS
+export PROX_API_KEY="your_key"
+./prox ai cmd "list files in the current directory"
+
+# Windows PowerShell
+$env:PROX_API_KEY="your_key"
+./prox.exe ai cmd "list files in the current directory"
 ```
 
 # 🧰 Available Commands
 
 | Command | Description |
 | :--- | :--- |
-| `help`     | Display the available commands |
-| `b64`      | Encode or decode strings to and from Base64 |
-| `keygen`   | Generate random secure keys |
-| `myip`     | Display public IP information |
-| `version`  | Show the current version of the CLI |
-| `hash`     | Compute the hash of a given input string or file securely |
+| `help` | Display the available commands |
+| `b64` | Encode or decode strings to and from Base64 |
+| `keygen` | Generate random secure keys |
+| `hash` | Compute the hash of a given input string or file securely |
+| `myip` | Display public IP information |
 | `portscan` | Scan a target host for open ports concurrently |
-| `lorem `   | Generate dummy Lorem Ipsum text for testing and placeholders |
+| `lorem` | Generate dummy Lorem Ipsum text for testing and placeholders |
+| `ai` | Generate terminal commands, discover relevant modules, or explain logs and payloads |
+| `version` | Show the current version of the CLI |
 
 # 🧩 Adding Your Own Module
 
@@ -174,7 +192,10 @@ func (v NameCommand) Execute(args []string) error {
 func (v NameCommand) Description() string {
 	return "Description"
 }
-
+func (v NameCommand) Help() string {
+	help := "Usage: prox Name"
+	return help
+}
 func init() {
 	register("name", NameCommand{})
 }
