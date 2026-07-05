@@ -18,6 +18,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"prox-cli/core"
 	"strings"
 )
 
@@ -41,10 +42,10 @@ func (v MyIpCommand) Execute(args []string) error {
 	}
 
 	publicIP := strings.TrimSpace(string(body))
-	if isPiped() {
-		PrintInfo("%s", publicIP)
+	if core.IsPiped() {
+		core.PrintInfo("%s", publicIP)
 	} else {
-		PrintInfo("Your public IP address is: %s", publicIP)
+		core.PrintInfo("Your public IP address is: %s", publicIP)
 	}
 	return nil
 }
@@ -58,5 +59,5 @@ func (v MyIpCommand) Help() string {
 	return help
 }
 func init() {
-	register("myip", MyIpCommand{})
+	core.Register("myip", MyIpCommand{})
 }

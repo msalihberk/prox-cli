@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"prox-cli/core"
 	"strconv"
 	"strings"
 	"time"
@@ -50,15 +51,15 @@ func generateParagraph(wordCount int) string {
 }
 
 func (v LoremCommand) Execute(args []string) error {
-	parser := New(args, false)
+	parser := core.New(args, false)
 	parser.Parse()
 
 	operation, _ := parser.Pos(0)
 	if operation == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("Usage: prox lorem [-w <words>] [-p <paragraphs>] [-c]")
-		PrintInfo("  -w, --words       : Number of words per paragraph. Default: 50")
-		PrintInfo("  -p, --paragraphs  : Number of paragraphs to generate. Default: 1")
-		PrintInfo("  -c, --copy        : Copy generated text to clipboard automatically")
+		core.PrintInfo("Usage: prox lorem [-w <words>] [-p <paragraphs>] [-c]")
+		core.PrintInfo("  -w, --words       : Number of words per paragraph. Default: 50")
+		core.PrintInfo("  -p, --paragraphs  : Number of paragraphs to generate. Default: 1")
+		core.PrintInfo("  -c, --copy        : Copy generated text to clipboard automatically")
 		return nil
 	}
 
@@ -99,21 +100,21 @@ func (v LoremCommand) Execute(args []string) error {
 	output := result.String()
 
 	if parser.GetAlias("c", "copy").Found {
-		if err := CopyToClipboard(output); err != nil {
-			if !isPiped() {
-				PrintMessage("%s", output)
-				PrintError("Clipboard error: %s", err.Error())
+		if err := core.CopyToClipboard(output); err != nil {
+			if !core.IsPiped() {
+				core.PrintMessage("%s", output)
+				core.PrintError("Clipboard error: %s", err.Error())
 			}
 			return nil
 		}
 	}
 
-	if isPiped() {
-		PrintInfo("%s", output)
+	if core.IsPiped() {
+		core.PrintInfo("%s", output)
 	} else {
-		PrintMessage("%s", output)
+		core.PrintMessage("%s", output)
 		if parser.GetAlias("c", "copy").Found {
-			PrintSuccess("✓ Copied to clipboard!")
+			core.PrintSuccess("✓ Copied to clipboard!")
 		}
 	}
 
@@ -130,5 +131,5 @@ func (v LoremCommand) Help() string {
 	return help
 }
 func init() {
-	register("lorem", LoremCommand{})
+	core.Register("lorem", LoremCommand{})
 }

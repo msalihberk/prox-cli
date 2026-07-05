@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"prox-cli/core"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,7 +66,7 @@ func parsePorts(portStr string) ([]int, error) {
 }
 
 func (v PortscanCommand) Execute(args []string) error {
-	parser := New(args, false)
+	parser := core.New(args, false)
 	parser.Parse()
 
 	if len(args) == 0 {
@@ -74,7 +75,7 @@ func (v PortscanCommand) Execute(args []string) error {
 
 	target, _ := parser.Pos(0)
 	if target == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("%s", v.Help())
+		core.PrintInfo("%s", v.Help())
 		return nil
 	}
 
@@ -103,8 +104,8 @@ func (v PortscanCommand) Execute(args []string) error {
 	}
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 
-	if !isPiped() {
-		PrintMessage("Scanning %s (%d ports) using %d workers...", target, len(portsToScan), workerCount)
+	if !core.IsPiped() {
+		core.PrintMessage("Scanning %s (%d ports) using %d workers...", target, len(portsToScan), workerCount)
 	}
 
 	portsChan := make(chan int, workerCount)
@@ -134,8 +135,8 @@ func (v PortscanCommand) Execute(args []string) error {
 		defer resultsWg.Done()
 		for port := range resultsChan {
 			openPorts = append(openPorts, port)
-			if isPiped() {
-				fmt.Printf("%d\n", port)
+			if core.IsPiped() {
+				core.PrintInfo("%d", port)
 			}
 		}
 	}()
@@ -149,15 +150,15 @@ func (v PortscanCommand) Execute(args []string) error {
 	close(resultsChan)
 	resultsWg.Wait()
 
-	if !isPiped() {
+	if !core.IsPiped() {
 		sort.Ints(openPorts)
-		PrintNewLine()
+		core.PrintNewLine()
 		if len(openPorts) == 0 {
-			PrintWarning("No open ports found on %s", target)
+			core.PrintWarning("No open ports found on %s", target)
 		} else {
-			PrintSuccess("Scan complete. Found %d open ports:", len(openPorts))
+			core.PrintSuccess("Scan complete. Found %d open ports:", len(openPorts))
 			for _, port := range openPorts {
-				PrintInfo("  Port %d is OPEN", port)
+				core.PrintInfo("  Port %d is OPEN", port)
 			}
 		}
 	}
@@ -177,5 +178,5 @@ func (v PortscanCommand) Help() string {
 	return help
 }
 func init() {
-	register("portscan", PortscanCommand{})
+	core.Register("portscan", PortscanCommand{})
 }

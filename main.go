@@ -17,7 +17,8 @@ package main
 import (
 	"bufio"
 	"os"
-	"prox-cli/commands"
+	_ "prox-cli/commands"
+	"prox-cli/core"
 	"strings"
 )
 
@@ -48,8 +49,8 @@ func readPipeInputs() ([]string, error) {
 }
 func controlArguments() {
 	if len(os.Args) < 2 {
-		commands.PrintMessage("Usage: prox [command] <arguments>")
-		commands.PrintMessage("Run 'prox help' for a list of available commands.")
+		core.PrintMessage("Usage: prox [command] <arguments>")
+		core.PrintMessage("Run 'prox help' for a list of available commands.")
 		os.Exit(1)
 	}
 
@@ -67,21 +68,21 @@ func controlArguments() {
 		subCommand = "help"
 	}
 
-	cmd, exists := commands.CommandRegistry[subCommand]
+	cmd, exists := core.CommandRegistry[subCommand]
 	if !exists {
-		commands.PrintError("Unknown command: %s", os.Args[1])
+		core.PrintError("Unknown command: %s", os.Args[1])
 
 		if suggestion := getClosestCommand(subCommand); suggestion != "" {
-			commands.PrintInfo("Did you mean: '%s'?\n\n", suggestion)
+			core.PrintInfo("Did you mean: '%s'?\n\n", suggestion)
 		}
 
-		commands.PrintMessage("Run 'prox help' to see all available commands.")
+		core.PrintMessage("Run 'prox help' to see all available commands.")
 		os.Exit(1)
 	}
 
 	err := cmd.Execute(subArgs)
 	if err != nil {
-		commands.PrintError("%v", err)
+		core.PrintError("%v", err)
 		os.Exit(1)
 	}
 }
@@ -89,7 +90,7 @@ func getClosestCommand(input string) string {
 	closest := ""
 	minDistance := 3
 
-	for registeredName := range commands.CommandRegistry {
+	for registeredName := range core.CommandRegistry {
 		dist := distance(input, registeredName)
 		if dist < minDistance {
 			minDistance = dist

@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"prox-cli/core"
 	"strings"
 	"time"
 )
@@ -106,10 +107,10 @@ func queryGemini(prompt string) (string, error) {
 
 	return geminiResp.Candidates[0].Content.Parts[0].Text, nil
 }
-func explainCommand(parser *Parser) error {
+func explainCommand(parser *core.Parser) error {
 	var inputText string
 
-	if isPiped() {
+	if core.IsPiped() {
 		stat, err := os.Stdin.Stat()
 		if err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
 			bytesData, err := io.ReadAll(os.Stdin)
@@ -135,30 +136,30 @@ func explainCommand(parser *Parser) error {
 		"solution. Keep it concise."
 	fullPrompt := systemInstruction + "\n\nInput to analyze:\n" + inputText
 
-	if !isPiped() {
-		PrintMessage("Analyzing...")
+	if !core.IsPiped() {
+		core.PrintMessage("Analyzing...")
 	}
 
 	result, err := queryGemini(fullPrompt)
 	if err != nil {
-		return err
+		return errors.New("failed to analyze input: " + err.Error())
 	}
 
 	cleanedResult := strings.TrimSpace(result)
 
-	if isPiped() {
+	if core.IsPiped() {
 		fmt.Print(cleanedResult)
 	} else {
-		PrintSuccess("Analysis Result:")
-		PrintMessage("%s", cleanedResult)
+		core.PrintSuccess("Analysis Result:")
+		core.PrintMessage("%s", cleanedResult)
 	}
 	return nil
 }
 func basicQuestionCommand(systemInstruction string, userPrompt string) error {
 	fullPrompt := systemInstruction + "\n\nUser Request: " + userPrompt
 
-	if !isPiped() {
-		PrintMessage("Thinking...")
+	if !core.IsPiped() {
+		core.PrintMessage("Thinking...")
 	}
 
 	result, err := queryGemini(fullPrompt)
@@ -172,15 +173,15 @@ func basicQuestionCommand(systemInstruction string, userPrompt string) error {
 	cleanedResult = strings.TrimSuffix(cleanedResult, "```")
 	cleanedResult = strings.TrimSpace(cleanedResult)
 
-	if isPiped() {
+	if core.IsPiped() {
 		fmt.Print(cleanedResult)
 	} else {
-		PrintSuccess("Command:")
-		PrintInfo("  %s", cleanedResult)
+		core.PrintSuccess("Command:")
+		core.PrintInfo("  %s", cleanedResult)
 	}
 	return nil
 }
-func cmdCommand(parser *Parser) error {
+func cmdCommand(parser *core.Parser) error {
 	prompt, ok := parser.Pos(1)
 	if !ok || prompt == "" {
 		return errors.New("ai cmd requires a prompt string (e.g., prox ai cmd \"list all files over 50mb\")")
@@ -189,10 +190,13 @@ func cmdCommand(parser *Parser) error {
 	systemInstruction := "You are a precise CLI assistant. Convert the user request into a single one-liner terminal command. " +
 		"Output ONLY the raw executable command, nothing else. No markdown formatting, no code blocks, no explanations, " +
 		"no text before or after."
-	basicQuestionCommand(systemInstruction, prompt)
+	err := basicQuestionCommand(systemInstruction, prompt)
+	if err != nil {
+		return errors.New("failed to generate command: " + err.Error())
+	}
 	return nil
 }
-func findCommand(parser *Parser) error {
+func findCommand(parser *core.Parser) error {
 	prompt, ok := parser.Pos(1)
 	if !ok || prompt == "" {
 		return errors.New("ai find requires a prompt string (e.g., prox ai find \"scan for open ports\")")
@@ -201,17 +205,20 @@ func findCommand(parser *Parser) error {
 	systemInstruction := "You are a CLI assistant. Based on the user request, identify and suggest relevant " +
 		"built-in prox modules or commands that can accomplish the task. Output ONLY the names of the modules or commands " +
 		"and necessary arguments, nothing else. No explanations, no text before or after.If you don't know, say so. This is tool's usage guide: " +
-		GetAllHelpTexts()
-	basicQuestionCommand(systemInstruction, prompt)
+		core.GetAllHelpTexts()
+	err := basicQuestionCommand(systemInstruction, prompt)
+	if err != nil {
+		return errors.New("failed to find relevant commands: " + err.Error())
+	}
 	return nil
 }
 func (v AICommand) Execute(args []string) error {
-	parser := New(args, false)
+	parser := core.New(args, false)
 	parser.Parse()
 
 	subCommand, ok := parser.Pos(0)
 	if !ok || subCommand == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("%s", v.Help())
+		core.PrintInfo("%s", v.Help())
 		return nil
 	}
 
@@ -220,7 +227,6 @@ func (v AICommand) Execute(args []string) error {
 		return cmdCommand(parser)
 	case "explain":
 		return explainCommand(parser)
-
 	case "find":
 		return findCommand(parser)
 	default:
@@ -240,5 +246,5 @@ func (v AICommand) Help() string {
 }
 
 func init() {
-	register("ai", AICommand{})
+	core.Register("ai", AICommand{})
 }

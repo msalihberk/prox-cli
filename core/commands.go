@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-package commands
+package core
 
 import "strings"
 
@@ -26,14 +26,13 @@ type Commander interface {
 	Description() string
 }
 
-func register(name string, cmd Commander) {
+func Register(name string, cmd Commander) {
 	CommandRegistry[name] = cmd
 }
 func GetAllHelpTexts() string {
 	var builder strings.Builder
 
 	for name, cmd := range CommandRegistry {
-		// Okunabilirliği artırmak için her yardım metninin başına komut adını ekleyebiliriz
 		builder.WriteString("Command: ")
 		builder.WriteString(name)
 		builder.WriteString("\n")

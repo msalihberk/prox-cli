@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-package commands
+package core
 
 import (
 	"errors"
@@ -56,5 +56,5 @@ func (v HelpCommand) Help() string {
 	return help
 }
 func init() {
-	register("help", HelpCommand{})
+	Register("help", HelpCommand{})
 }

@@ -18,24 +18,25 @@ import (
 	"crypto/rand"
 	"errors"
 	"math/big"
+	"prox-cli/core"
 	"strconv"
 )
 
 type KeyGenCommand struct{}
 
 func (v KeyGenCommand) Execute(args []string) error {
-	parser := New(args, false)
+	parser := core.New(args, false)
 	parser.Parse()
 
 	lengthStr, ok := parser.Pos(0)
 
 	if lengthStr == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("Usage: prox keygen <length> [-A] [-a] [-N] [-S] [-c custom_chars]")
-		PrintInfo("  -A, --uppercase   : Include uppercase letters")
-		PrintInfo("  -a, --lowercase   : Include lowercase letters")
-		PrintInfo("  -N, --numbers     : Include numbers")
-		PrintInfo("  -S, --special     : Include special characters")
-		PrintInfo("  -c, --chars <str> : Use custom character set")
+		core.PrintInfo("Usage: prox keygen <length> [-A] [-a] [-N] [-S] [-c custom_chars]")
+		core.PrintInfo("  -A, --uppercase   : Include uppercase letters")
+		core.PrintInfo("  -a, --lowercase   : Include lowercase letters")
+		core.PrintInfo("  -N, --numbers     : Include numbers")
+		core.PrintInfo("  -S, --special     : Include special characters")
+		core.PrintInfo("  -c, --chars <str> : Use custom character set")
 		return nil
 	}
 	if !ok {
@@ -85,10 +86,10 @@ func (v KeyGenCommand) Execute(args []string) error {
 		password[i] = charset[randomIndex.Int64()]
 	}
 
-	if isPiped() {
-		PrintInfo("%s", string(password))
+	if core.IsPiped() {
+		core.PrintInfo("%s", string(password))
 	} else {
-		PrintSuccess("Key Generated: %s", string(password))
+		core.PrintSuccess("Key Generated: %s", string(password))
 	}
 	return nil
 }
@@ -102,5 +103,5 @@ func (v KeyGenCommand) Help() string {
 	return help
 }
 func init() {
-	register("keygen", KeyGenCommand{})
+	core.Register("keygen", KeyGenCommand{})
 }

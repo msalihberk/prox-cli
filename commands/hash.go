@@ -24,12 +24,13 @@ import (
 	"hash"
 	"io"
 	"os"
+	"prox-cli/core"
 	"strings"
 )
 
 type HashCommand struct{}
 
-func calculateHash(reader io.Reader, parser *Parser) (string, string, error) {
+func calculateHash(reader io.Reader, parser *core.Parser) (string, string, error) {
 	var hasher hash.Hash
 
 	if parser.GetAlias("b", "sha512").Found {
@@ -55,7 +56,7 @@ func runHash(h hash.Hash, reader io.Reader) string {
 }
 
 func (v HashCommand) Execute(args []string) error {
-	parser := New(args, false)
+	parser := core.New(args, false)
 	parser.Parse()
 
 	if len(args) == 0 {
@@ -64,7 +65,7 @@ func (v HashCommand) Execute(args []string) error {
 
 	operation, _ := parser.Pos(0)
 	if operation == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("%s", v.Help())
+		core.PrintInfo("%s", v.Help())
 		return nil
 	}
 
@@ -94,10 +95,10 @@ func (v HashCommand) Execute(args []string) error {
 		return errors.New("failed to compute hash")
 	}
 
-	if isPiped() {
-		PrintInfo("%s", hashResult)
+	if core.IsPiped() {
+		core.PrintInfo("%s", hashResult)
 	} else {
-		PrintInfo("%s: %s", algoName, hashResult)
+		core.PrintInfo("%s: %s", algoName, hashResult)
 	}
 	return nil
 }
@@ -114,5 +115,5 @@ func (v HashCommand) Help() string {
 	return help
 }
 func init() {
-	register("hash", HashCommand{})
+	core.Register("hash", HashCommand{})
 }

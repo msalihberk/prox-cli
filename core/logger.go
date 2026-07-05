@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-package commands
+package core
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ const (
 	colorCyan   = "\033[36m"
 )
 
-func isPiped() bool {
+func IsPiped() bool {
 	fi, err := os.Stdout.Stat()
 	if err != nil {
 		return false
@@ -42,7 +42,7 @@ func PrintError(format string, a ...interface{}) {
 
 func PrintInfo(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	if isPiped() {
+	if IsPiped() {
 		fmt.Print(msg)
 	} else {
 		fmt.Printf("%s%s%s\n", colorCyan, msg, colorReset)
@@ -51,7 +51,7 @@ func PrintInfo(format string, a ...interface{}) {
 
 func PrintSuccess(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	if isPiped() {
+	if IsPiped() {
 		fmt.Print(msg)
 	} else {
 		fmt.Printf("%s%s%s\n", colorGreen, msg, colorReset)
@@ -60,7 +60,7 @@ func PrintSuccess(format string, a ...interface{}) {
 
 func PrintMessage(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	if isPiped() {
+	if IsPiped() {
 		fmt.Print(msg)
 	} else {
 		fmt.Printf("%s%s%s\n", colorReset, msg, colorReset)
@@ -73,7 +73,7 @@ func PrintWarning(format string, a ...interface{}) {
 }
 
 func PrintNewLine() {
-	if !isPiped() {
+	if !IsPiped() {
 		fmt.Println()
 	}
 }

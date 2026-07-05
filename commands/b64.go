@@ -18,12 +18,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"os"
+	"prox-cli/core"
 )
 
 type B64Command struct{}
 
 func (b B64Command) Execute(args []string) error {
-	parser := New(args, false)
+	parser := core.New(args, false)
 	parser.Parse()
 
 	operation, ok := parser.Pos(0)
@@ -32,7 +33,7 @@ func (b B64Command) Execute(args []string) error {
 	}
 
 	if operation == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("%s", b.Help())
+		core.PrintInfo("%s", b.Help())
 		return nil
 	}
 
@@ -72,11 +73,11 @@ func (b B64Command) Execute(args []string) error {
 		if err != nil {
 			return errors.New("failed to write output file: " + err.Error())
 		}
-		PrintSuccess("%s: result written to %s", operation, output.Value)
-	} else if !isPiped() {
-		PrintSuccess("%s: %s", operation, result)
+		core.PrintSuccess("%s: result written to %s", operation, output.Value)
+	} else if !core.IsPiped() {
+		core.PrintSuccess("%s: %s", operation, result)
 	} else {
-		PrintInfo("%s", result)
+		core.PrintInfo("%s", result)
 	}
 
 	return nil
@@ -94,5 +95,5 @@ func (v B64Command) Help() string {
 	return help
 }
 func init() {
-	register("b64", B64Command{})
+	core.Register("b64", B64Command{})
 }
