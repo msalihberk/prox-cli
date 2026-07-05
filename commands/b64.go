@@ -17,33 +17,71 @@ package commands
 import (
 	"encoding/base64"
 	"errors"
+	"os"
 )
 
 type B64Command struct{}
 
 func (b B64Command) Execute(args []string) error {
-	if len(args) < 2 {
-		return errors.New("Base64 command requires 2 arguments. Usage: b64 <encode|decode> <string>")
+	parser := New(args, false)
+	parser.Parse()
+
+	operation, ok := parser.Pos(0)
+	if !ok {
+		return errors.New("operation required: 'encode' or 'decode'")
 	}
-	if args[0] == "help" {
-		PrintInfo("Base64 command requires 2 arguments. Usage: b64 <encode|decode> <string>")
+
+	if operation == "help" || parser.GetAlias("h", "help").Found {
+		PrintInfo("Usage: prox b64 <encode|decode> <string> [options]")
+		PrintInfo("  prox b64 encode hello")
+		PrintInfo("  prox b64 decode SGVsbG8=")
+		PrintInfo("Options:")
+		PrintInfo("  -i, --input <file>  : Read from file")
+		PrintInfo("  -o, --output <file> : Write to file")
 		return nil
 	}
-	switch args[0] {
-	case "encode":
-		// Perform base64 encoding
-		encoded := base64.StdEncoding.EncodeToString([]byte(args[1]))
-		PrintSuccess("Encoded: %s", encoded)
-	case "decode":
-		// Perform base64 decoding
-		decoded, err := base64.StdEncoding.DecodeString(args[1])
+
+	var input string
+
+	if str, ok := parser.Pos(1); ok {
+		input = str
+	} else if val := parser.GetAlias("i", "input"); val.Found {
+		// Read from file
+		data, err := os.ReadFile(val.Value)
 		if err != nil {
-			return errors.New("Invalid base64 string")
+			return errors.New("failed to read input file: " + err.Error())
 		}
-		PrintSuccess("Decoded: %s", string(decoded))
-	default:
-		return errors.New("Invalid operation. Use 'encode' or 'decode'")
+		input = string(data)
+	} else {
+		return errors.New("input string or file required")
 	}
+
+	var result string
+
+	switch operation {
+	case "encode":
+		result = base64.StdEncoding.EncodeToString([]byte(input))
+	case "decode":
+		decoded, err := base64.StdEncoding.DecodeString(input)
+		if err != nil {
+			return errors.New("invalid base64 string")
+		}
+		result = string(decoded)
+	default:
+		return errors.New("unknown operation: use 'encode' or 'decode'")
+	}
+
+	if output := parser.GetAlias("o", "output"); output.Found {
+		// Write to file
+		err := os.WriteFile(output.Value, []byte(result), 0644)
+		if err != nil {
+			return errors.New("failed to write output file: " + err.Error())
+		}
+		PrintSuccess("%s: result written to %s", operation, output.Value)
+	} else {
+		PrintSuccess("%s: %s", operation, result)
+	}
+
 	return nil
 }
 func (b B64Command) Description() string {

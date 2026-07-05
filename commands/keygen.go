@@ -24,45 +24,54 @@ import (
 type KeyGenCommand struct{}
 
 func (v KeyGenCommand) Execute(args []string) error {
-	if len(args) < 1 || len(args) > 5 {
-		return errors.New("Usage: prox keygen <number> [A] [a] [0] [!] | [C <characters>]")
-	}
-	if args[0] == "help" {
-		PrintInfo("Usage: prox keygen <number> [A] [a] [0] [!] | [C <characters>]")
+	parser := New(args, false)
+	parser.Parse()
+
+	lengthStr, ok := parser.Pos(0)
+
+	if lengthStr == "help" || parser.GetAlias("h", "help").Found {
+		PrintInfo("Usage: prox keygen <length> [-A] [-a] [-N] [-S] [-c custom_chars]")
+		PrintInfo("  -A, --uppercase   : Include uppercase letters")
+		PrintInfo("  -a, --lowercase   : Include lowercase letters")
+		PrintInfo("  -N, --numbers     : Include numbers")
+		PrintInfo("  -S, --special     : Include special characters")
+		PrintInfo("  -c, --chars <str> : Use custom character set")
 		return nil
 	}
-	length, err := strconv.Atoi(args[0])
-	if err != nil {
-		return errors.New("Error: " + err.Error())
+	if !ok {
+		return errors.New("length argument required")
 	}
+
+	length, err := strconv.Atoi(lengthStr)
+	if err != nil {
+		return errors.New("invalid length: " + err.Error())
+	}
+
 	const charset_uppercase = "ABCDEFGHHIJKLMNOPRSTUVWXYZ"
 	const charset_lowercase = "abcdefghijklmnoprstuvwxyz"
 	const charset_number = "0123456789"
 	const charset_special = "!@$+*%^&()-_=[]{}|;:,.<>/"
+
 	charset := ""
-	customCharSet := ""
-	for j := 1; j < len(args); j++ {
-		switch args[j] {
-		case "A":
-			charset = charset + charset_uppercase
-		case "a":
-			charset = charset + charset_lowercase
-		case "0":
-			charset = charset + charset_number
-		case "!":
-			charset = charset + charset_special
-		default:
-			customCharSet = args[j]
-		}
-	}
-	if charset != "" {
-		if customCharSet != "" {
-			return errors.New("Usage: prox keygen <number> [A] [a] [0] [!] | [C <characters>]")
-		}
-	} else if customCharSet != "" {
-		charset = customCharSet
+
+	if parser.GetAlias("c", "chars").Found {
+		charset = parser.GetAlias("c", "chars").Value
 	} else {
-		charset = charset + charset_lowercase + charset_uppercase + charset_number + charset_special
+		if parser.GetAlias("A", "uppercase").Found {
+			charset += charset_uppercase
+		}
+		if parser.GetAlias("a", "lowercase").Found {
+			charset += charset_lowercase
+		}
+		if parser.GetAlias("N", "numbers").Found {
+			charset += charset_number
+		}
+		if parser.GetAlias("S", "special").Found {
+			charset += charset_special
+		}
+		if charset == "" {
+			charset = charset_lowercase + charset_uppercase + charset_number + charset_special
+		}
 	}
 
 	password := make([]byte, length)
@@ -71,10 +80,11 @@ func (v KeyGenCommand) Execute(args []string) error {
 	for i := 0; i < length; i++ {
 		randomIndex, err := rand.Int(rand.Reader, charsetLength)
 		if err != nil {
-			return errors.New("Error: " + err.Error())
+			return errors.New("random generation error: " + err.Error())
 		}
 		password[i] = charset[randomIndex.Int64()]
 	}
+
 	PrintSuccess("Key Generated: %s", string(password))
 	return nil
 }
