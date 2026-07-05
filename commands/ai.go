@@ -244,7 +244,9 @@ func (v AICommand) Help() string {
 	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
 	return help
 }
-
+func (v AICommand) SubCommands() []string {
+	return []string{"cmd", "explain", "find", "help"}
+}
 func init() {
 	core.Register("ai", AICommand{})
 }

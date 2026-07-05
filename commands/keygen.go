@@ -97,10 +97,16 @@ func (v KeyGenCommand) Description() string {
 	return "Create random and secure key"
 }
 func (v KeyGenCommand) Help() string {
-	help := "Usage: prox ai <command> [arguments]"
-	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
-	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	help := "Usage: prox keygen <length> [-A] [-a] [-N] [-S] [-c custom_chars]"
+	help += "\n  -A, --uppercase   : Include uppercase letters"
+	help += "\n  -a, --lowercase   : Include lowercase letters"
+	help += "\n  -N, --numbers     : Include numbers"
+	help += "\n  -S, --special     : Include special characters"
+	help += "\n  -c, --chars <str> : Use custom character set"
 	return help
+}
+func (v KeyGenCommand) SubCommands() []string {
+	return []string{"--uppercase", "--lowercase", "--numbers", "--special", "--chars", "help"}
 }
 func init() {
 	core.Register("keygen", KeyGenCommand{})

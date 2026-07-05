@@ -24,6 +24,7 @@ type Commander interface {
 	Help() string
 	Execute(args []string) error
 	Description() string
+	SubCommands() []string
 }
 
 func Register(name string, cmd Commander) {

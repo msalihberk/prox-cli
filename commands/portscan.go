@@ -177,6 +177,9 @@ func (v PortscanCommand) Help() string {
 	help += "\n  -t, --timeout     : Timeout in milliseconds. Default: 500"
 	return help
 }
+func (v PortscanCommand) SubCommands() []string {
+	return []string{"--ports", "--workers", "--timeout", "help"}
+}
 func init() {
 	core.Register("portscan", PortscanCommand{})
 }

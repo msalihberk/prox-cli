@@ -53,10 +53,15 @@ func (v MyIpCommand) Description() string {
 	return "Display public ip address"
 }
 func (v MyIpCommand) Help() string {
-	help := "Usage: prox ai <command> [arguments]"
-	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
-	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	help := "Usage: prox myip"
+	help += "\n  Displays your public IP address by querying an external service."
+	help += "\n  No arguments are required."
+	help += "\n  Example: prox myip"
+	help += "\n  Note: Ensure you have an active internet connection to retrieve your public IP."
 	return help
+}
+func (v MyIpCommand) SubCommands() []string {
+	return []string{"help"}
 }
 func init() {
 	core.Register("myip", MyIpCommand{})

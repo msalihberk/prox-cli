@@ -94,6 +94,9 @@ func (v B64Command) Help() string {
 	help += "\n  -o, --output <file> : Write to file"
 	return help
 }
+func (v B64Command) SubCommands() []string {
+	return []string{"encode", "decode", "help", "--input", "--output"}
+}
 func init() {
 	core.Register("b64", B64Command{})
 }

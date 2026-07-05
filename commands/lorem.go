@@ -125,10 +125,13 @@ func (v LoremCommand) Description() string {
 	return "Generate dummy Lorem Ipsum text for testing and placeholders"
 }
 func (v LoremCommand) Help() string {
-	help := "Usage: prox ai <command> [arguments]"
-	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
-	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	help := "Usage: prox lorem [-w <words>] [-p <paragraphs>] [-c]"
+	help += "\n  -w, --words       : Number of words per paragraph. Default: 50"
+	help += "\n  -p, --paragraphs  : Number of paragraphs to generate. Default: 1"
 	return help
+}
+func (v LoremCommand) SubCommands() []string {
+	return []string{"--words", "--paragraphs", "--copy", "help"}
 }
 func init() {
 	core.Register("lorem", LoremCommand{})

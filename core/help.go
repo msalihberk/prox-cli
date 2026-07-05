@@ -55,6 +55,9 @@ func (v HelpCommand) Help() string {
 	help := "Usage: prox help"
 	return help
 }
+func (v HelpCommand) SubCommands() []string {
+	return []string{""}
+}
 func init() {
 	Register("help", HelpCommand{})
 }

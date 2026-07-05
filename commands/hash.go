@@ -114,6 +114,9 @@ func (v HashCommand) Help() string {
 	help += "\n  -d, --sha1        : Compute SHA1 hash"
 	return help
 }
+func (v HashCommand) SubCommands() []string {
+	return []string{"--string", "--file", "--sha256", "--sha512", "--md5", "--sha1", "help"}
+}
 func init() {
 	core.Register("hash", HashCommand{})
 }
