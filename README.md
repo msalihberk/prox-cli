@@ -107,13 +107,13 @@ Here are a few common examples:
 
 ```bash
 # Base64 encode
- go run . b64 encode test -o test.txt
+ ./prox b64 encode test -o test.txt
 
 # Base64 encode
- go run . b64 encode "hello"
+ ./prox b64 encode "hello"
 
 # Base64 decode
- go run . b64 decode SGVsbG8=
+ ./prox b64 decode SGVsbG8=
 
 # Generate a secure random key
  ./prox keygen 16
