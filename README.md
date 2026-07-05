@@ -106,14 +106,14 @@ go run . help
 Here are a few common examples:
 
 ```bash
-# Base64 encode
- ./prox b64 encode test -o test.txt
+# Generate hash
+ ./prox b64 hash --sha256 -s test
 
 # Base64 encode
  ./prox b64 encode "hello"
 
-# Base64 decode
- ./prox b64 decode SGVsbG8=
+# Portscan
+ ./prox b64 portscan SAMPLE_PORT -p 1-500
 
 # Generate a secure random key
  ./prox keygen 16
@@ -135,6 +135,7 @@ Here are a few common examples:
 | `myip` | Display public IP information |
 | `version` | Show the current version of the CLI |
 | `hash` | Compute the hash of a given input string or file securely |
+| `portscan` | Scan a target host for open ports concurrently |
 
 # 🧩 Adding Your Own Module
 
