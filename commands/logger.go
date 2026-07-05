@@ -16,6 +16,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 )
 
 const (
@@ -26,29 +27,53 @@ const (
 	colorCyan   = "\033[36m"
 )
 
+func isPiped() bool {
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) == 0
+}
+
 func PrintError(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%sError: %s%s\n", colorRed, msg, colorReset)
+	fmt.Fprintf(os.Stderr, "%sError: %s%s\n", colorRed, msg, colorReset)
 }
 
 func PrintInfo(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s\n", colorCyan, msg, colorReset)
+	if isPiped() {
+		fmt.Print(msg)
+	} else {
+		fmt.Printf("%s%s%s\n", colorCyan, msg, colorReset)
+	}
 }
 
 func PrintSuccess(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s\n", colorGreen, msg, colorReset)
+	if isPiped() {
+		fmt.Print(msg)
+	} else {
+		fmt.Printf("%s%s%s\n", colorGreen, msg, colorReset)
+	}
 }
 
 func PrintMessage(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s\n", colorReset, msg, colorReset)
+	if isPiped() {
+		fmt.Print(msg)
+	} else {
+		fmt.Printf("%s%s%s\n", colorReset, msg, colorReset)
+	}
 }
+
 func PrintWarning(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%sWarning: %s%s\n", colorYellow, msg, colorReset)
+	fmt.Fprintf(os.Stderr, "%sWarning: %s%s\n", colorYellow, msg, colorReset)
 }
+
 func PrintNewLine() {
-	fmt.Println()
+	if !isPiped() {
+		fmt.Println()
+	}
 }

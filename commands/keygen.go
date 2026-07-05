@@ -39,7 +39,7 @@ func (v KeyGenCommand) Execute(args []string) error {
 		return nil
 	}
 	if !ok {
-		return errors.New("length argument required")
+		return errors.New("length argument required. Try 'prox keygen help' for usage information.")
 	}
 
 	length, err := strconv.Atoi(lengthStr)
@@ -85,7 +85,11 @@ func (v KeyGenCommand) Execute(args []string) error {
 		password[i] = charset[randomIndex.Int64()]
 	}
 
-	PrintSuccess("Key Generated: %s", string(password))
+	if isPiped() {
+		PrintInfo("%s", string(password))
+	} else {
+		PrintSuccess("Key Generated: %s", string(password))
+	}
 	return nil
 }
 func (v KeyGenCommand) Description() string {

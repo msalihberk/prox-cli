@@ -25,7 +25,7 @@ type MyIpCommand struct{}
 
 func (v MyIpCommand) Execute(args []string) error {
 	if len(args) > 0 {
-		return errors.New("MyIp command does not accept any arguments")
+		return errors.New("MyIp command does not accept any arguments. Try 'prox myip help' for usage information.")
 	}
 	url := "https://icanhazip.com"
 
@@ -41,7 +41,11 @@ func (v MyIpCommand) Execute(args []string) error {
 	}
 
 	publicIP := strings.TrimSpace(string(body))
-	PrintInfo("Your public IP address is: %s", publicIP)
+	if isPiped() {
+		PrintInfo("%s", publicIP)
+	} else {
+		PrintInfo("Your public IP address is: %s", publicIP)
+	}
 	return nil
 }
 func (v MyIpCommand) Description() string {

@@ -28,7 +28,7 @@ func (b B64Command) Execute(args []string) error {
 
 	operation, ok := parser.Pos(0)
 	if !ok {
-		return errors.New("operation required: 'encode' or 'decode'")
+		return errors.New("operation required: 'encode' or 'decode'. Try 'prox b64 help' for usage information.")
 	}
 
 	if operation == "help" || parser.GetAlias("h", "help").Found {
@@ -53,7 +53,7 @@ func (b B64Command) Execute(args []string) error {
 		}
 		input = string(data)
 	} else {
-		return errors.New("input string or file required")
+		return errors.New("input string or file required. Try 'prox b64 help' for usage information.")
 	}
 
 	var result string
@@ -68,7 +68,7 @@ func (b B64Command) Execute(args []string) error {
 		}
 		result = string(decoded)
 	default:
-		return errors.New("unknown operation: use 'encode' or 'decode'")
+		return errors.New("unknown operation: use 'encode' or 'decode'. Try 'prox b64 help' for usage information.")
 	}
 
 	if output := parser.GetAlias("o", "output"); output.Found {
@@ -78,8 +78,10 @@ func (b B64Command) Execute(args []string) error {
 			return errors.New("failed to write output file: " + err.Error())
 		}
 		PrintSuccess("%s: result written to %s", operation, output.Value)
-	} else {
+	} else if !isPiped() {
 		PrintSuccess("%s: %s", operation, result)
+	} else {
+		PrintInfo("%s", result)
 	}
 
 	return nil
