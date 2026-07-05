@@ -1,14 +1,28 @@
+/* Copyright 2026 Mustafa Salih Berk
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. */
+
 package commands
 
 // Registry holds all available commands dynamically
-var CommandRegistry = map[string]Commander{
-	"b64":     B64Command{},
-	"help":    HelpCommand{},
-	"version": VersionCommand{},
-}
+var CommandRegistry = map[string]Commander{}
 
 // Commander defines the behavior for all CLI commands
 type Commander interface {
 	Execute(args []string) error
 	Description() string
+}
+
+func register(name string, cmd Commander) {
+	CommandRegistry[name] = cmd
 }
