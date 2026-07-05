@@ -51,6 +51,12 @@ func (v MyIpCommand) Execute(args []string) error {
 func (v MyIpCommand) Description() string {
 	return "Display public ip address"
 }
+func (v MyIpCommand) Help() string {
+	help := "Usage: prox ai <command> [arguments]"
+	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
+	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	return help
+}
 func init() {
 	register("myip", MyIpCommand{})
 }

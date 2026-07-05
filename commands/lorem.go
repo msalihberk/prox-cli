@@ -123,7 +123,12 @@ func (v LoremCommand) Execute(args []string) error {
 func (v LoremCommand) Description() string {
 	return "Generate dummy Lorem Ipsum text for testing and placeholders"
 }
-
+func (v LoremCommand) Help() string {
+	help := "Usage: prox ai <command> [arguments]"
+	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
+	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	return help
+}
 func init() {
 	register("lorem", LoremCommand{})
 }

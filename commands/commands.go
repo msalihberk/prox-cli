@@ -14,15 +14,32 @@ limitations under the License. */
 
 package commands
 
+import "strings"
+
 // Registry holds all available commands dynamically
 var CommandRegistry = map[string]Commander{}
 
 // Commander defines the behavior for all CLI commands
 type Commander interface {
+	Help() string
 	Execute(args []string) error
 	Description() string
 }
 
 func register(name string, cmd Commander) {
 	CommandRegistry[name] = cmd
+}
+func GetAllHelpTexts() string {
+	var builder strings.Builder
+
+	for name, cmd := range CommandRegistry {
+		// Okunabilirliği artırmak için her yardım metninin başına komut adını ekleyebiliriz
+		builder.WriteString("Command: ")
+		builder.WriteString(name)
+		builder.WriteString("\n")
+		builder.WriteString(cmd.Help())
+		builder.WriteString("\n-------------------\n")
+	}
+
+	return builder.String()
 }

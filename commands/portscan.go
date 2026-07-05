@@ -74,11 +74,7 @@ func (v PortscanCommand) Execute(args []string) error {
 
 	target, _ := parser.Pos(0)
 	if target == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("Usage: prox portscan <target> [-p <ports>] [-w <workers>] [-t <timeout>]")
-		PrintInfo("  <target>          : Domain or IP address to scan")
-		PrintInfo("  -p, --ports       : Ports to scan (e.g., '80,443' or '20-80'). Default: 20 common ports")
-		PrintInfo("  -w, --workers     : Number of concurrent workers. Default: 100")
-		PrintInfo("  -t, --timeout     : Timeout in milliseconds. Default: 500")
+		PrintInfo("%s", v.Help())
 		return nil
 	}
 
@@ -172,7 +168,14 @@ func (v PortscanCommand) Execute(args []string) error {
 func (v PortscanCommand) Description() string {
 	return "Scan a target host for open ports concurrently"
 }
-
+func (v PortscanCommand) Help() string {
+	help := "Usage: prox portscan <target> [-p <ports>] [-w <workers>] [-t <timeout>]"
+	help += "\n  <target>          : Domain or IP address to scan"
+	help += "\n  -p, --ports       : Ports to scan (e.g., '80,443' or '20-80'). Default: 20 common ports"
+	help += "\n  -w, --workers     : Number of concurrent workers. Default: 100"
+	help += "\n  -t, --timeout     : Timeout in milliseconds. Default: 500"
+	return help
+}
 func init() {
 	register("portscan", PortscanCommand{})
 }

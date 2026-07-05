@@ -51,6 +51,10 @@ func (h HelpCommand) Execute(args []string) error {
 func (h HelpCommand) Description() string {
 	return "Display help information for available commands"
 }
+func (v HelpCommand) Help() string {
+	help := "Usage: prox help"
+	return help
+}
 func init() {
 	register("help", HelpCommand{})
 }

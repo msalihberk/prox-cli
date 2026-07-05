@@ -95,6 +95,12 @@ func (v KeyGenCommand) Execute(args []string) error {
 func (v KeyGenCommand) Description() string {
 	return "Create random and secure key"
 }
+func (v KeyGenCommand) Help() string {
+	help := "Usage: prox ai <command> [arguments]"
+	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
+	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	return help
+}
 func init() {
 	register("keygen", KeyGenCommand{})
 }

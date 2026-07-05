@@ -64,11 +64,7 @@ func (v HashCommand) Execute(args []string) error {
 
 	operation, _ := parser.Pos(0)
 	if operation == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("Usage: prox hash -s <string> | -f <file> [-a] [-b] [-c] [-d]")
-		PrintInfo("  -a, --sha256      : Compute SHA256 hash (Default)")
-		PrintInfo("  -b, --sha512      : Compute SHA512 hash")
-		PrintInfo("  -c, --md5         : Compute MD5 hash")
-		PrintInfo("  -d, --sha1        : Compute SHA1 hash")
+		PrintInfo("%s", v.Help())
 		return nil
 	}
 
@@ -109,7 +105,14 @@ func (v HashCommand) Execute(args []string) error {
 func (v HashCommand) Description() string {
 	return "Compute the hash of a given input string or file securely"
 }
-
+func (v HashCommand) Help() string {
+	help := "Usage: prox hash -s <string> | -f <file> [-a] [-b] [-c] [-d]"
+	help += "\n  -a, --sha256      : Compute SHA256 hash (Default)"
+	help += "\n  -b, --sha512      : Compute SHA512 hash"
+	help += "\n  -c, --md5         : Compute MD5 hash"
+	help += "\n  -d, --sha1        : Compute SHA1 hash"
+	return help
+}
 func init() {
 	register("hash", HashCommand{})
 }

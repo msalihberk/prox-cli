@@ -32,12 +32,7 @@ func (b B64Command) Execute(args []string) error {
 	}
 
 	if operation == "help" || parser.GetAlias("h", "help").Found {
-		PrintInfo("Usage: prox b64 <encode|decode> <string> [options]")
-		PrintInfo("  prox b64 encode hello")
-		PrintInfo("  prox b64 decode SGVsbG8=")
-		PrintInfo("Options:")
-		PrintInfo("  -i, --input <file>  : Read from file")
-		PrintInfo("  -o, --output <file> : Write to file")
+		PrintInfo("%s", b.Help())
 		return nil
 	}
 
@@ -88,6 +83,15 @@ func (b B64Command) Execute(args []string) error {
 }
 func (b B64Command) Description() string {
 	return "Encode or decode strings to/from Base64 format"
+}
+func (v B64Command) Help() string {
+	help := "Usage: prox b64 <encode|decode> <string> [options]"
+	help += "\n  prox b64 encode hello"
+	help += "\n  prox b64 decode SGVsbG8="
+	help += "\nOptions:"
+	help += "\n  -i, --input <file>  : Read from file"
+	help += "\n  -o, --output <file> : Write to file"
+	return help
 }
 func init() {
 	register("b64", B64Command{})

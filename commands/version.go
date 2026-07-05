@@ -25,7 +25,7 @@ func (v VersionCommand) Execute(args []string) error {
 		return errors.New("Version command does not accept any arguments")
 	}
 	PrintNewLine()
-	PrintInfo("Prox CLI - Version 0.8.0")
+	PrintInfo("Prox CLI - Version 0.9.0")
 	PrintInfo("Copyright 2026 Mustafa Salih Berk")
 	PrintInfo("GitHub: https://github.com/msalihberk/prox-cli")
 	PrintInfo("Licensed under the Apache License 2.0.")
@@ -34,6 +34,10 @@ func (v VersionCommand) Execute(args []string) error {
 }
 func (v VersionCommand) Description() string {
 	return "Display the current version of the CLI tool"
+}
+func (v VersionCommand) Help() string {
+	help := "Usage: prox version"
+	return help
 }
 func init() {
 	register("version", VersionCommand{})
