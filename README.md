@@ -185,14 +185,14 @@ package commands
 
 type NameCommand struct{}
 
-func (v NameCommand) Execute(args []string) error {
+func (c NameCommand) Execute(args []string) error {
 	return nil
 }
 
-func (v NameCommand) Description() string {
+func (c NameCommand) Description() string {
 	return "Description"
 }
-func (v NameCommand) Help() string {
+func (c NameCommand) Help() string {
 	help := "Usage: prox Name"
 	return help
 }
