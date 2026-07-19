@@ -183,6 +183,10 @@ limitations under the License. */
 
 package commands
 
+import (
+	"prox-cli/core"
+)
+
 type NameCommand struct{}
 
 func (c NameCommand) Execute(args []string) error {
@@ -196,8 +200,11 @@ func (c NameCommand) Help() string {
 	help := "Usage: prox Name"
 	return help
 }
+func (c NameCommand) SubCommands() []string {
+	return []string{"--argument", "help"} // This is for AI agents, list only those with meaningful names (Example: --argument instead of -a)
+}
 func init() {
-	register("name", NameCommand{})
+	Register("name", NameCommand{})
 }
 ```
 
