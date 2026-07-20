@@ -1,6 +1,6 @@
 <div align="center">
 <p align="center">
-  <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=500&size=26&duration=3500&pause=1000&color=00D8FF&center=true&vCenter=true&width=850&lines=prox+ai+cmd+%27list files in the current directory%27;prox+lorem+--words+100;prox+ai+explain+%27ERROR%27;prox+myip"/>
+  <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=500&size=26&duration=3500&pause=1000&color=00D8FF&center=true&vCenter=true&width=850&lines=prox+ai+cmd+%27list+files+in+the+current+directory%27;prox+lorem+--words+100;prox+ai+explain+%27ERROR%27;prox+myip"/>
 </p>
 
 # prox-cli
