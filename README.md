@@ -5,6 +5,8 @@
 
 # prox-cli
 
+<img src="assets/banner.png" alt="Prox-cli Banner" width="100%"/>
+
 ### Lightweight, modular, and extensible CLI toolkit for developers and security researchers
 
 A modern Go-based command-line suite for everyday tasks such as encoding, password generation, hashing, port scanning, sample text generation, and AI-assisted terminal help.
