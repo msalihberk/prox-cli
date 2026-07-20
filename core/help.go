@@ -37,7 +37,7 @@ func (h HelpCommand) Execute(args []string) error {
 
 	for _, name := range commandNames {
 		cmd := CommandRegistry[name]
-		PrintMessage("  %-10s : %s", name, cmd.Description())
+		PrintMessage(" \033[33m%-10s\033[0m : %s", name, cmd.Description())
 	}
 	PrintNewLine()
 	cmd, exists := CommandRegistry["version"]
@@ -49,7 +49,7 @@ func (h HelpCommand) Execute(args []string) error {
 	return nil
 }
 func (h HelpCommand) Description() string {
-	return "Display help information for available commands"
+	return "Display help information for available commands \033[32m(CORE)\033[0m"
 }
 func (v HelpCommand) Help() string {
 	help := "Usage: prox help"

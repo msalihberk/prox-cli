@@ -87,16 +87,16 @@ cd prox-cli
 go build -o prox .
 ```
 
-## 3. Run the CLI
+## 3. Setup Prox
 
 ```bash
-./prox help
+./prox setup
 ```
 
-On Windows, the compiled executable can also be run as:
+## 4. Run the CLI
 
 ```bash
-./prox.exe help
+prox help
 ```
 
 You can also run it directly without building:
@@ -107,39 +107,36 @@ go run . help
 
 # 💻 Usage
 
+> [!NOTE]
+> If you haven't entered a valid API key in the setup command before, use the `prox setup setup-env` command to add your API key as an environment variable for using ai features.
+
 Here are a few common examples using the current command set:
 
 ```bash
 # Base64 encode
-./prox b64 encode "hello"
+prox b64 encode "hello"
 
 # Base64 decode
-./prox b64 decode SGVsbG8=
+prox b64 decode SGVsbG8=
 
 # Generate a secure random key
-./prox keygen 16
+prox keygen 16
 
 # Generate a hash from a string
-./prox hash -s test
+prox hash -s test
 
 # Generate a hash from a file
-./prox hash -f sample.txt -b
+prox hash -f sample.txt -b
 
 # Scan open ports on a target
-./prox portscan example.com -p 80,443 -w 50 -t 1000
+prox portscan example.com -p 80,443 -w 50 -t 1000
 
 # Generate lorem ipsum text
-./prox lorem -w 12 -p 2
+prox lorem -w 12 -p 2
 
 # Use AI helpers (requires PROX_API_KEY)
-
-# Unix / macOS
-export PROX_API_KEY="your_key"
 ./prox ai cmd "list files in the current directory"
 
-# Windows PowerShell
-$env:PROX_API_KEY="your_key"
-./prox.exe ai cmd "list files in the current directory"
 ```
 
 # 🧰 Available Commands
@@ -154,6 +151,7 @@ $env:PROX_API_KEY="your_key"
 | `portscan` | Scan a target host for open ports concurrently |
 | `lorem` | Generate dummy Lorem Ipsum text for testing and placeholders |
 | `ai` | Generate terminal commands, discover relevant modules, or explain logs and payloads |
+| `setup` | Make it easier to access Prox, save your API key, and enable autocomplete |
 | `version` | Show the current version of the CLI |
 
 # 🧩 Adding Your Own Module
