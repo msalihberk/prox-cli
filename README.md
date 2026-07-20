@@ -2,6 +2,7 @@
 <p align="center">
   <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=500&size=26&duration=3500&pause=1000&color=00D8FF&center=true&vCenter=true&width=850&lines=prox+ai+cmd+'list files in the current directory';prox+lorem+--words+100;prox+ai+explain+'ERROR';prox+myip"/>
 </p>
+
 # prox-cli
 
 ### Lightweight, modular, and extensible CLI toolkit for developers and security researchers
