@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -99,9 +100,7 @@ func SetupEnvironment() error {
 			fmt.Println("✓ PROX_API_KEY is already up to date in environment variables.")
 			return nil
 		}
-		fmt.Println("\n[Action Required] To make this permanent in Windows, run this in PowerShell:")
-		fmt.Printf("[Environment]::SetEnvironmentVariable(\"PROX_API_KEY\", \"%s\", \"User\")\n", apiKey)
-		fmt.Println("Please restart your shell after running it.")
+		runCommand(fmt.Sprintf("[Environment]::SetEnvironmentVariable(\"PROX_API_KEY\", \"%s\", \"User\")\n", apiKey))
 		return nil
 	}
 
@@ -125,7 +124,22 @@ func SetupEnvironment() error {
 
 	return nil
 }
+func runCommand(commandStr string) error {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/c", commandStr)
+	} else {
+		cmd = exec.Command("bash", "-c", commandStr)
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
+	err := cmd.Run()
+	if err != nil {
+		fmt.Printf("An error occurred: %v\n", err)
+	}
+	return nil
+}
 func SetupShellCompletion() error {
 	var targetPath string
 	var shellName string
