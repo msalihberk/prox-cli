@@ -33,10 +33,16 @@ import (
 type AICommand struct{}
 
 type GeminiRequest struct {
-	Contents []GeminiContent `json:"contents"`
+	Contents          []GeminiContent          `json:"contents"`
+	SystemInstruction *GeminiSystemInstruction `json:"systemInstruction,omitempty"`
+}
+
+type GeminiSystemInstruction struct {
+	Parts []GeminiPart `json:"parts"`
 }
 
 type GeminiContent struct {
+	Role  string       `json:"role,omitempty"`
 	Parts []GeminiPart `json:"parts"`
 }
 
@@ -54,7 +60,7 @@ type GeminiResponse struct {
 	} `json:"candidates"`
 }
 
-func queryGemini(prompt string) (string, error) {
+func queryGemini(contents []GeminiContent, systemInstruction string) (string, error) {
 	apiKey := os.Getenv("PROX_API_KEY")
 	if apiKey == "" {
 		return "", errors.New("PROX_API_KEY environment variable is not set. Please set it before using AI features")
@@ -63,13 +69,14 @@ func queryGemini(prompt string) (string, error) {
 	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey
 
 	reqBody := GeminiRequest{
-		Contents: []GeminiContent{
-			{
-				Parts: []GeminiPart{
-					{Text: prompt},
-				},
+		Contents: contents,
+	}
+	if systemInstruction != "" {
+		reqBody.SystemInstruction = &GeminiSystemInstruction{
+			Parts: []GeminiPart{
+				{Text: systemInstruction},
 			},
-		},
+		}
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -123,10 +130,39 @@ func printSlowText(text string) {
 	fmt.Println()
 }
 
+func extractExecutionDirective(text string) (string, bool) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return "", false
+	}
+
+	markers := []string{"PROX_EXECUTE:", "PROX_RUN:", "EXECUTE:"}
+	for _, marker := range markers {
+		idx := strings.Index(strings.ToUpper(trimmed), marker)
+		if idx < 0 {
+			continue
+		}
+		candidate := trimmed[idx+len(marker):]
+		candidate = strings.TrimSpace(candidate)
+		candidate = strings.Trim(candidate, "`\n\r")
+		candidate = strings.TrimPrefix(candidate, "```bash")
+		candidate = strings.TrimPrefix(candidate, "```")
+		candidate = strings.TrimSuffix(candidate, "```")
+		candidate = strings.TrimSpace(candidate)
+		if candidate != "" && looksLikeCommand(candidate) {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
 func extractCommandCandidate(text string) (string, bool) {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
 		return "", false
+	}
+	if candidate, ok := extractExecutionDirective(trimmed); ok {
+		return candidate, true
 	}
 	patterns := []string{
 		"command:",
@@ -179,18 +215,29 @@ func looksLikeCommand(text string) bool {
 	return strings.Contains(candidate, "\\") || strings.Contains(candidate, "/") || strings.HasPrefix(candidate, "prox ") || strings.HasPrefix(candidate, "git ") || strings.HasPrefix(candidate, "ls ") || strings.HasPrefix(candidate, "dir ") || strings.HasPrefix(candidate, "curl ") || strings.HasPrefix(candidate, "wget ")
 }
 
-func promptForConfirmation(promptText string) bool {
-	if core.IsPiped() {
-		return false
+func splitAgentResponse(response string) (string, string, bool) {
+	cmd, ok := extractExecutionDirective(response)
+	if !ok {
+		return response, "", false
 	}
-	fmt.Printf("\n%s [Y/n]: ", promptText)
-	reader := bufio.NewReader(os.Stdin)
-	answer, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return false
+	// Let's strip the command instruction lines from response
+	lines := strings.Split(response, "\n")
+	var explanationLines []string
+	markers := []string{"PROX_EXECUTE:", "PROX_RUN:", "EXECUTE:"}
+	for _, line := range lines {
+		isMarkerLine := false
+		for _, m := range markers {
+			if strings.Contains(strings.ToUpper(line), m) {
+				isMarkerLine = true
+				break
+			}
+		}
+		if !isMarkerLine {
+			explanationLines = append(explanationLines, line)
+		}
 	}
-	answer = strings.TrimSpace(strings.ToLower(answer))
-	return answer == "" || answer == "y" || answer == "yes"
+	explanation := strings.TrimSpace(strings.Join(explanationLines, "\n"))
+	return explanation, cmd, true
 }
 
 func runShellCommand(command string) error {
@@ -209,26 +256,60 @@ func maybeExecuteSuggestedCommand(response string) {
 	if core.IsPiped() {
 		return
 	}
-	candidate, ok := extractCommandCandidate(response)
+	explanation, cmd, ok := splitAgentResponse(response)
 	if !ok {
 		return
 	}
-	if !promptForConfirmation("AI suggested a command to run") {
+	if explanation != "" {
+		fmt.Println()
+		printSlowText(explanation)
+	}
+	box := core.DrawBox("PROPOSED COMMAND", cmd, core.ColorLightCyan)
+	fmt.Println("\n" + box)
+	if !core.PromptConfirm("Run the proposed command?", false) {
 		core.PrintWarning("Command execution cancelled by user.")
 		return
 	}
-	core.PrintSuccess("Running command: %s", candidate)
-	if err := runShellCommand(candidate); err != nil {
+	core.PrintSuccess("Running command: %s", cmd)
+	if err := runShellCommand(cmd); err != nil {
 		core.PrintError("Command execution failed: %v", err)
 	}
 }
 
+func prepareAgentRequest(input string) string {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return trimmed
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "run ") || strings.Contains(lower, "execute ") || strings.Contains(lower, "open ") || strings.Contains(lower, "install ") || strings.Contains(lower, "list files") || strings.Contains(lower, "scan ") || strings.Contains(lower, "check ") || strings.Contains(lower, "start ") || strings.Contains(lower, "restart ") || strings.HasPrefix(lower, "prox ") || strings.HasPrefix(lower, "git ") || strings.HasPrefix(lower, "ls ") || strings.HasPrefix(lower, "dir ") {
+		return "EXECUTION_REQUEST: " + trimmed
+	}
+	return trimmed
+}
+
 func startInteractiveAgent() error {
-	core.PrintSuccess("Starting interactive agent session")
-	core.PrintInfo("Type your request and press Enter. Use 'exit' or 'quit' to leave.")
+	// Full screen / Clear screen
+	if !core.IsPiped() {
+		fmt.Print("\033[H\033[2J")
+		fmt.Println(core.GetColorizedBanner())
+		fmt.Println()
+
+		// Progressive booting animations
+		time.Sleep(150 * time.Millisecond)
+		core.PrintInfo("Initializing Prox Copilot Engine...")
+		time.Sleep(200 * time.Millisecond)
+		core.PrintSuccess("Loaded AI cognitive models successfully.")
+		time.Sleep(150 * time.Millisecond)
+		core.PrintSuccess("Established connection to generative API service.")
+		time.Sleep(200 * time.Millisecond)
+		core.PrintInfo("Agent Safe Mode: Active. Command execution requires explicit approval.")
+		fmt.Println()
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("\nagent> ")
+		fmt.Printf("%s %s ", core.StyleText("prox-agent", core.ColorLightCyan+core.ColorBold), core.StyleText("›", core.ColorLightGreen+core.ColorBold))
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -242,23 +323,58 @@ func startInteractiveAgent() error {
 			continue
 		}
 		if strings.EqualFold(input, "exit") || strings.EqualFold(input, "quit") {
-			core.PrintInfo("Agent session ended.")
+			core.PrintInfo("Agent session ended. Goodbye!")
 			return nil
 		}
 
-		systemInstruction := "You are an expert terminal copilot and developer assistant. Help the user with practical, concise answers. If a shell command is useful, provide it in a clear command form. Ask for confirmation before running it."
-		result, err := queryGemini(systemInstruction + "\n\nUser request: " + input)
+		systemInstruction := "You are Prox Agent, a terminal-native developer assistant. " +
+			"This is a real command-capable agent session. " +
+			"Important: if the user requests a shell command or an action that must be executed, reply with EXACTLY this format: PROX_EXECUTE: <command>. " +
+			"If no command should be executed, answer normally and do not include an execution token. " +
+			"Keep replies concise, practical, and developer-focused. " +
+			"Never include markdown fences when returning a command. " +
+			"CRITICAL: The user is running on the following OS: " + runtime.GOOS + ". " +
+			"Make sure all generated commands are fully compatible with " + runtime.GOOS + "."
+
+		spinnerStop := core.ShowSpinner("Agent is thinking")
+		result, err := queryGemini([]GeminiContent{
+			{
+				Parts: []GeminiPart{
+					{Text: "User request: " + prepareAgentRequest(input)},
+				},
+			},
+		}, systemInstruction)
+		spinnerStop <- true
 		if err != nil {
 			core.PrintError("%v", err)
 			continue
 		}
+
 		cleaned := strings.TrimSpace(result)
 		if cleaned == "" {
 			continue
 		}
-		core.PrintSuccess("Agent response:")
-		printSlowText(cleaned)
-		maybeExecuteSuggestedCommand(cleaned)
+
+		explanation, cmd, hasCmd := splitAgentResponse(cleaned)
+		if hasCmd {
+			if explanation != "" {
+				fmt.Println()
+				printSlowText(explanation)
+			}
+			box := core.DrawBox("PROPOSED COMMAND", cmd, core.ColorLightCyan)
+			fmt.Println("\n" + box)
+			if core.PromptConfirm("Run the proposed command?", false) {
+				core.PrintSuccess("Running command: %s", cmd)
+				if err := runShellCommand(cmd); err != nil {
+					core.PrintError("Command execution failed: %v", err)
+				}
+			} else {
+				core.PrintWarning("Command execution cancelled by user.")
+			}
+		} else {
+			fmt.Println()
+			printSlowText(cleaned)
+		}
 	}
 }
 
@@ -289,13 +405,18 @@ func explainCommand(parser *core.Parser) error {
 	systemInstruction := "You are a cybersecurity expert and systems developer. Analyze the given log, error message, payload," +
 		" or code snippet. Explain what it means, identify any potential security risks or errors, and provide a brief actionable" +
 		"solution. Keep it concise."
-	fullPrompt := systemInstruction + "\n\nInput to analyze:\n" + inputText
 
 	if !core.IsPiped() {
 		core.PrintMessage("Analyzing...")
 	}
 
-	result, err := queryGemini(fullPrompt)
+	result, err := queryGemini([]GeminiContent{
+		{
+			Parts: []GeminiPart{
+				{Text: "Input to analyze:\n" + inputText},
+			},
+		},
+	}, systemInstruction)
 	if err != nil {
 		return errors.New("failed to analyze input: " + err.Error())
 	}
@@ -311,13 +432,18 @@ func explainCommand(parser *core.Parser) error {
 	return nil
 }
 func basicQuestionCommand(systemInstruction string, userPrompt string) error {
-	fullPrompt := systemInstruction + "\n\nUser Request: " + userPrompt
 
 	if !core.IsPiped() {
 		core.PrintMessage("Thinking...")
 	}
 
-	result, err := queryGemini(fullPrompt)
+	result, err := queryGemini([]GeminiContent{
+		{
+			Parts: []GeminiPart{
+				{Text: "User Request: " + userPrompt},
+			},
+		},
+	}, systemInstruction)
 	if err != nil {
 		return err
 	}

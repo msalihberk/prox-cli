@@ -50,7 +50,11 @@ func styleText(text, color string) string {
 
 func PrintError(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "%sERROR: %s%s\n", colorRed, msg, colorReset)
+	if IsPiped() {
+		fmt.Fprintf(os.Stderr, "ERROR: %s\n", msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "%s %s\n", styleText("✖", colorRed+colorBold), msg)
+	}
 }
 
 func PrintInfo(format string, a ...interface{}) {
@@ -58,7 +62,7 @@ func PrintInfo(format string, a ...interface{}) {
 	if IsPiped() {
 		fmt.Print(msg)
 	} else {
-		fmt.Printf("%s%s%s\n", styleText("INFO", colorCyan+colorBold), " "+msg, colorReset)
+		fmt.Printf("%s %s\n", styleText("ℹ", colorCyan+colorBold), msg)
 	}
 }
 
@@ -67,7 +71,7 @@ func PrintSuccess(format string, a ...interface{}) {
 	if IsPiped() {
 		fmt.Print(msg)
 	} else {
-		fmt.Printf("%s%s%s\n", styleText("OK", colorGreen+colorBold), " "+msg, colorReset)
+		fmt.Printf("%s %s\n", styleText("✔", colorGreen+colorBold), msg)
 	}
 }
 
@@ -85,7 +89,11 @@ func PrintMessage(format string, a ...interface{}) {
 
 func PrintWarning(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "%sWARN: %s%s\n", colorYellow, msg, colorReset)
+	if IsPiped() {
+		fmt.Fprintf(os.Stderr, "WARN: %s\n", msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "%s %s\n", styleText("⚠", colorYellow+colorBold), msg)
+	}
 }
 
 func PrintNewLine() {

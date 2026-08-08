@@ -46,14 +46,7 @@ func RenderWelcomeScreen() string {
 	return builder.String()
 }
 
-func RenderHelpScreen() string {
-	var commandNames []string
-	for name := range CommandRegistry {
-		commandNames = append(commandNames, name)
-	}
-	sort.Strings(commandNames)
-
-	var builder strings.Builder
+func GetColorizedBanner() string {
 	banner := `
        ______________      
       /              \
@@ -72,8 +65,19 @@ func RenderHelpScreen() string {
                         The Swiss Army Knife for Developers & Sysadmins
 
 ══════════════════════════════════════════════⬢══════════════════════════════════════════════`
+	return colorizeBanner(banner)
+}
+
+func RenderHelpScreen() string {
+	var commandNames []string
+	for name := range CommandRegistry {
+		commandNames = append(commandNames, name)
+	}
+	sort.Strings(commandNames)
+
+	var builder strings.Builder
 	builder.WriteString("\n")
-	builder.WriteString(styleText(banner, colorCyan+colorBold))
+	builder.WriteString(GetColorizedBanner())
 	builder.WriteString("\n\n")
 
 	for _, name := range commandNames {
@@ -100,6 +104,37 @@ func RenderHelpScreen() string {
 	return builder.String()
 }
 
+func colorizeBanner(banner string) string {
+	lines := strings.Split(banner, "\n")
+	var colorized []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			colorized = append(colorized, line)
+			continue
+		}
+		// If divider line (contains ═══)
+		if strings.Contains(line, "═══") {
+			colorized = append(colorized, styleText(line, ColorLightCyan))
+			continue
+		}
+		// If subtitle
+		if strings.Contains(line, "Swiss Army Knife") {
+			colorized = append(colorized, styleText(line, ColorLightMagenta+colorBold))
+			continue
+		}
+		// Shield and text parts. Split at column index 32
+		runes := []rune(line)
+		if len(runes) > 32 {
+			left := string(runes[:32])
+			right := string(runes[32:])
+			colorized = append(colorized, styleText(left, ColorLightCyan)+styleText(right, ColorLightMagenta+colorBold))
+		} else {
+			colorized = append(colorized, styleText(line, ColorLightCyan))
+		}
+	}
+	return strings.Join(colorized, "\n")
+}
+
 func (h HelpCommand) Execute(args []string) error {
 	if len(args) > 0 {
 		return errors.New("Help command does not accept any arguments")
@@ -120,3 +155,4 @@ func (v HelpCommand) SubCommands() []string {
 func init() {
 	Register("help", HelpCommand{})
 }
+

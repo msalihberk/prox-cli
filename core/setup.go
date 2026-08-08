@@ -50,7 +50,7 @@ func setupAll() {
 	}
 }
 func (c SetupCommand) Description() string {
-	return "Set up the proxy system automatically or using specific manual commands \033[32m(CORE)\033[0m"
+	return "Set up the prox CLI toolkit automatically or using specific manual commands \033[32m(CORE)\033[0m"
 }
 
 func (c SetupCommand) SubCommands() []string {

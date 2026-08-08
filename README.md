@@ -49,12 +49,14 @@ The project is built around a simple command registry, making it straightforward
 
 # ✨ Features
 
+- 🎨 **Modernized TUI**: Highly polished terminal UI with colorized output, including a dual-tone cyan/magenta ASCII shield banner in the help command.
+- 🤖 **Claude Code-like Agent Mode**: Interactive AI terminal copilot (`prox agent`) with dynamic thinking loaders and colorized prompts.
+- 🛡️ **Secure Execution Prompt**: Context-aware confirmation dialog that automatically prompts you before running commands suggested by the AI agent (safe mode).
 - 🔐 Base64 encoding and decoding with optional file input/output support
 - 🧪 Secure random key generation with customizable character sets
 - 🧮 Hash generation for MD5, SHA1, SHA256, and SHA512
 - 🌐 Port scanning for a target host and a custom port range
 - 📝 Lorem Ipsum text generation for testing and placeholders
-- 🤖 AI-assisted command generation, command discovery, and log explanation
 - 🧩 Extensible command architecture for future modules
 - 🛠 Clean and minimal Go-based implementation
 

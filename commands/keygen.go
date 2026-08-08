@@ -48,8 +48,8 @@ func (v KeyGenCommand) Execute(args []string) error {
 		return errors.New("invalid length: " + err.Error())
 	}
 
-	const charset_uppercase = "ABCDEFGHHIJKLMNOPRSTUVWXYZ"
-	const charset_lowercase = "abcdefghijklmnoprstuvwxyz"
+	const charset_uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	const charset_lowercase = "abcdefghijklmnopqrstuvwxyz"
 	const charset_number = "0123456789"
 	const charset_special = "!@$+*%^&()-_=[]{}|;:,.<>/"
 
