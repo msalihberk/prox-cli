@@ -17,14 +17,20 @@ package core
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-	colorCyan   = "\033[36m"
+	colorReset   = "\033[0m"
+	colorBold    = "\033[1m"
+	colorDim     = "\033[2m"
+	colorRed     = "\033[31m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorCyan    = "\033[36m"
+	colorMagenta = "\033[35m"
+	colorWhite   = "\033[37m"
 )
 
 func IsPiped() bool {
@@ -35,9 +41,16 @@ func IsPiped() bool {
 	return (fi.Mode() & os.ModeCharDevice) == 0
 }
 
+func styleText(text, color string) string {
+	if IsPiped() {
+		return text
+	}
+	return color + text + colorReset
+}
+
 func PrintError(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "%sError: %s%s\n", colorRed, msg, colorReset)
+	fmt.Fprintf(os.Stderr, "%sERROR: %s%s\n", colorRed, msg, colorReset)
 }
 
 func PrintInfo(format string, a ...interface{}) {
@@ -45,7 +58,7 @@ func PrintInfo(format string, a ...interface{}) {
 	if IsPiped() {
 		fmt.Print(msg)
 	} else {
-		fmt.Printf("%s%s%s\n", colorCyan, msg, colorReset)
+		fmt.Printf("%s%s%s\n", styleText("INFO", colorCyan+colorBold), " "+msg, colorReset)
 	}
 }
 
@@ -54,7 +67,7 @@ func PrintSuccess(format string, a ...interface{}) {
 	if IsPiped() {
 		fmt.Print(msg)
 	} else {
-		fmt.Printf("%s%s%s\n", colorGreen, msg, colorReset)
+		fmt.Printf("%s%s%s\n", styleText("OK", colorGreen+colorBold), " "+msg, colorReset)
 	}
 }
 
@@ -63,13 +76,16 @@ func PrintMessage(format string, a ...interface{}) {
 	if IsPiped() {
 		fmt.Print(msg)
 	} else {
-		fmt.Printf("%s%s%s\n", colorReset, msg, colorReset)
+		fmt.Print(msg)
+		if !strings.HasSuffix(msg, "\n") {
+			fmt.Println()
+		}
 	}
 }
 
 func PrintWarning(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Fprintf(os.Stderr, "%sWarning: %s%s\n", colorYellow, msg, colorReset)
+	fmt.Fprintf(os.Stderr, "%sWARN: %s%s\n", colorYellow, msg, colorReset)
 }
 
 func PrintNewLine() {

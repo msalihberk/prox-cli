@@ -15,6 +15,7 @@ limitations under the License. */
 package commands
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -22,7 +23,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"prox-cli/core"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -107,6 +110,158 @@ func queryGemini(prompt string) (string, error) {
 
 	return geminiResp.Candidates[0].Content.Parts[0].Text, nil
 }
+
+func printSlowText(text string) {
+	if core.IsPiped() {
+		fmt.Print(text)
+		return
+	}
+	for _, ch := range text {
+		fmt.Printf("%c", ch)
+		time.Sleep(12 * time.Millisecond)
+	}
+	fmt.Println()
+}
+
+func extractCommandCandidate(text string) (string, bool) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return "", false
+	}
+	patterns := []string{
+		"command:",
+		"run:",
+		"execute:",
+		"here is the command",
+		"use this command",
+		"recommended command",
+	}
+	for _, pattern := range patterns {
+		if idx := strings.Index(strings.ToLower(trimmed), pattern); idx >= 0 {
+			candidate := trimmed[idx+len(pattern):]
+			candidate = strings.TrimSpace(candidate)
+			candidate = strings.Trim(candidate, "`\n\r")
+			candidate = strings.TrimPrefix(candidate, "```bash")
+			candidate = strings.TrimPrefix(candidate, "```")
+			candidate = strings.TrimSuffix(candidate, "```")
+			candidate = strings.TrimSpace(candidate)
+			if candidate != "" && looksLikeCommand(candidate) {
+				return candidate, true
+			}
+		}
+	}
+
+	lines := strings.Split(trimmed, "\n")
+	for _, line := range lines {
+		candidate := strings.TrimSpace(line)
+		candidate = strings.Trim(candidate, "`\n\r")
+		if candidate == "" {
+			continue
+		}
+		if looksLikeCommand(candidate) {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
+func looksLikeCommand(text string) bool {
+	candidate := strings.TrimSpace(text)
+	if candidate == "" {
+		return false
+	}
+	if strings.Contains(strings.ToLower(candidate), "here is") || strings.Contains(strings.ToLower(candidate), "you should") {
+		return false
+	}
+	if strings.Contains(candidate, " ") || strings.Contains(candidate, "\t") {
+		return true
+	}
+	return strings.Contains(candidate, "\\") || strings.Contains(candidate, "/") || strings.HasPrefix(candidate, "prox ") || strings.HasPrefix(candidate, "git ") || strings.HasPrefix(candidate, "ls ") || strings.HasPrefix(candidate, "dir ") || strings.HasPrefix(candidate, "curl ") || strings.HasPrefix(candidate, "wget ")
+}
+
+func promptForConfirmation(promptText string) bool {
+	if core.IsPiped() {
+		return false
+	}
+	fmt.Printf("\n%s [Y/n]: ", promptText)
+	reader := bufio.NewReader(os.Stdin)
+	answer, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false
+	}
+	answer = strings.TrimSpace(strings.ToLower(answer))
+	return answer == "" || answer == "y" || answer == "yes"
+}
+
+func runShellCommand(command string) error {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/C", command)
+	} else {
+		cmd = exec.Command("sh", "-c", command)
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func maybeExecuteSuggestedCommand(response string) {
+	if core.IsPiped() {
+		return
+	}
+	candidate, ok := extractCommandCandidate(response)
+	if !ok {
+		return
+	}
+	if !promptForConfirmation("AI suggested a command to run") {
+		core.PrintWarning("Command execution cancelled by user.")
+		return
+	}
+	core.PrintSuccess("Running command: %s", candidate)
+	if err := runShellCommand(candidate); err != nil {
+		core.PrintError("Command execution failed: %v", err)
+	}
+}
+
+func startInteractiveAgent() error {
+	core.PrintSuccess("Starting interactive agent session")
+	core.PrintInfo("Type your request and press Enter. Use 'exit' or 'quit' to leave.")
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("\nagent> ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				fmt.Println()
+				return nil
+			}
+			return err
+		}
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+		if strings.EqualFold(input, "exit") || strings.EqualFold(input, "quit") {
+			core.PrintInfo("Agent session ended.")
+			return nil
+		}
+
+		systemInstruction := "You are an expert terminal copilot and developer assistant. Help the user with practical, concise answers. If a shell command is useful, provide it in a clear command form. Ask for confirmation before running it."
+		result, err := queryGemini(systemInstruction + "\n\nUser request: " + input)
+		if err != nil {
+			core.PrintError("%v", err)
+			continue
+		}
+		cleaned := strings.TrimSpace(result)
+		if cleaned == "" {
+			continue
+		}
+		core.PrintSuccess("Agent response:")
+		printSlowText(cleaned)
+		maybeExecuteSuggestedCommand(cleaned)
+	}
+}
+
 func explainCommand(parser *core.Parser) error {
 	var inputText string
 
@@ -151,7 +306,7 @@ func explainCommand(parser *core.Parser) error {
 		fmt.Print(cleanedResult)
 	} else {
 		core.PrintSuccess("Analysis Result:")
-		core.PrintMessage("%s", cleanedResult)
+		printSlowText(cleanedResult)
 	}
 	return nil
 }
@@ -176,8 +331,9 @@ func basicQuestionCommand(systemInstruction string, userPrompt string) error {
 	if core.IsPiped() {
 		fmt.Print(cleanedResult)
 	} else {
-		core.PrintSuccess("Command:")
-		core.PrintInfo("  %s", cleanedResult)
+		core.PrintSuccess("AI Response:")
+		printSlowText(cleanedResult)
+		maybeExecuteSuggestedCommand(cleanedResult)
 	}
 	return nil
 }
@@ -229,24 +385,50 @@ func (v AICommand) Execute(args []string) error {
 		return explainCommand(parser)
 	case "find":
 		return findCommand(parser)
+	case "agent":
+		return startInteractiveAgent()
 	default:
 		return fmt.Errorf("unknown ai sub-command '%s'. Try 'prox ai help' for usage info", subCommand)
 	}
 }
 
 func (v AICommand) Description() string {
-	return "Leverage AI to generate terminal commands or analyze complex logs and payloads"
+	return "Leverage AI to generate terminal commands, analyze logs, and run an interactive agent session"
 }
 func (v AICommand) Help() string {
 	help := "Usage: prox ai <command> [arguments]"
 	help += "\n  cmd <prompt>     : Convert natural language to a one-liner terminal command"
 	help += "\n  find <prompt>    : Find builtin prox modules for a specific task or command"
 	help += "\n  explain [text]   : Analyze and explain logs, code, or payloads (Supports piping)"
+	help += "\n  agent            : Start an interactive agent session"
 	return help
 }
 func (v AICommand) SubCommands() []string {
-	return []string{"cmd", "explain", "find", "help"}
+	return []string{"cmd", "explain", "find", "agent", "help"}
 }
 func init() {
 	core.Register("ai", AICommand{})
+	core.Register("agent", AgentCommand{})
+}
+
+type AgentCommand struct{}
+
+func (a AgentCommand) Execute(args []string) error {
+	if len(args) > 0 && (args[0] == "help" || args[0] == "--help" || args[0] == "-h") {
+		core.PrintInfo("%s", a.Help())
+		return nil
+	}
+	return startInteractiveAgent()
+}
+
+func (a AgentCommand) Description() string {
+	return "Start an interactive AI assistant session"
+}
+
+func (a AgentCommand) Help() string {
+	return "Usage: prox agent\n  Starts an interactive agent chat session that can suggest and run approved commands."
+}
+
+func (a AgentCommand) SubCommands() []string {
+	return []string{"help"}
 }

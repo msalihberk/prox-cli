@@ -16,40 +16,99 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 )
 
 type HelpCommand struct{}
 
-func (h HelpCommand) Execute(args []string) error {
-	if len(args) > 0 {
-		return errors.New("Help command does not accept any arguments")
-	}
-	PrintNewLine()
-	PrintInfo("Prox CLI - Available Commands:")
-	PrintInfo("--------------------------------")
+func RenderWelcomeScreen() string {
+	var builder strings.Builder
+	builder.WriteString("\n")
+	builder.WriteString(styleText("PROX CLI", colorCyan+colorBold))
+	builder.WriteString("\n")
+	builder.WriteString(styleText("Modern command toolkit for developers and security workflows", colorWhite+colorBold))
+	builder.WriteString("\n\n")
+	builder.WriteString("Quick start:\n")
+	builder.WriteString("  • ")
+	builder.WriteString(styleText("prox help", colorGreen+colorBold))
+	builder.WriteString("     shows the complete command catalog\n")
+	builder.WriteString("  • ")
+	builder.WriteString(styleText("prox version", colorYellow+colorBold))
+	builder.WriteString("  prints the current build metadata\n")
+	builder.WriteString("  • ")
+	builder.WriteString(styleText("prox setup", colorMagenta+colorBold))
+	builder.WriteString("   configures the environment for first-time use\n\n")
+	builder.WriteString("Tip: use ")
+	builder.WriteString(styleText("prox help", colorGreen+colorBold))
+	builder.WriteString(" for a full overview of available utilities.\n")
+	return builder.String()
+}
 
+func RenderHelpScreen() string {
 	var commandNames []string
 	for name := range CommandRegistry {
 		commandNames = append(commandNames, name)
 	}
 	sort.Strings(commandNames)
 
+	var builder strings.Builder
+	banner := `
+       ______________      
+      /              \
+     /                \
+    /    __            \        ██████╗ ██████╗  ██████╗ ██╗  ██╗      ██████╗██╗     ██╗
+   |    \  \            |       ██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝     ██╔════╝██║     ██║
+   |     \  \    ___    |       ██████╔╝██████╔╝██║   ██║ ╚███╔╝      ██║     ██║     ██║
+   |     /  /   |___|   |       ██╔═══╝ ██╔══██╗██║   ██║ ██╔██╗      ██║     ██║     ██║ 
+   |    /__/            |       ██║     ██║  ██║╚██████╔╝██╔╝ ██╗     ╚██████╗███████╗██║
+    \                  /        ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝      ╚═════╝╚══════╝╚═╝ 
+     \                /         
+      \______________/          
+                                
+══════════════════════════════════════════════⬢══════════════════════════════════════════════
+
+                        The Swiss Army Knife for Developers & Sysadmins
+
+══════════════════════════════════════════════⬢══════════════════════════════════════════════`
+	builder.WriteString("\n")
+	builder.WriteString(styleText(banner, colorCyan+colorBold))
+	builder.WriteString("\n\n")
+
 	for _, name := range commandNames {
 		cmd := CommandRegistry[name]
-		PrintMessage(" \033[33m%-10s\033[0m : %s", name, cmd.Description())
+		builder.WriteString("  ")
+		builder.WriteString(styleText(fmt.Sprintf("%-12s", name), colorYellow+colorBold))
+		builder.WriteString("  ")
+		builder.WriteString(strings.TrimSpace(cmd.Description()))
+		builder.WriteString("\n")
 	}
-	PrintNewLine()
-	cmd, exists := CommandRegistry["version"]
-	if exists {
-		cmd.Execute(nil)
-	}
-	PrintNewLine()
 
+	builder.WriteString("\n")
+	builder.WriteString(styleText("Quick examples:", colorWhite+colorBold))
+	builder.WriteString("\n")
+	builder.WriteString("  • ")
+	builder.WriteString(styleText("prox help", colorGreen+colorBold))
+	builder.WriteString("\n")
+	builder.WriteString("  • ")
+	builder.WriteString(styleText("prox version", colorGreen+colorBold))
+	builder.WriteString("\n")
+	builder.WriteString("  • ")
+	builder.WriteString(styleText("prox setup", colorGreen+colorBold))
+	builder.WriteString("\n")
+	return builder.String()
+}
+
+func (h HelpCommand) Execute(args []string) error {
+	if len(args) > 0 {
+		return errors.New("Help command does not accept any arguments")
+	}
+	PrintMessage("%s", RenderHelpScreen())
 	return nil
 }
 func (h HelpCommand) Description() string {
-	return "Display help information for available commands \033[32m(CORE)\033[0m"
+	return "Display help information for available commands (CORE)"
 }
 func (v HelpCommand) Help() string {
 	help := "Usage: prox help"

@@ -49,6 +49,7 @@ func readPipeInputs() ([]string, error) {
 }
 func controlArguments() {
 	if len(os.Args) < 2 {
+		core.PrintMessage("%s", core.RenderWelcomeScreen())
 		core.PrintMessage("Usage: prox [command] <arguments>")
 		core.PrintMessage("Run 'prox help' for a list of available commands.")
 		os.Exit(1)
