@@ -72,7 +72,7 @@ func InstallBinary() error {
 		return fmt.Errorf("failed to copy binary data: %v", err)
 	}
 
-	fmt.Printf("│\n├── ✓ Binary successfully installed to: %s\n", targetPath)
+	fmt.Printf("✓ Binary successfully installed to: %s\n", targetPath)
 	return nil
 }
 
@@ -116,8 +116,8 @@ func SetupEnvironment() error {
 	}
 
 	if updated {
-		fmt.Printf("│\n├── ✓ Successfully updated PROX_API_KEY in %s\n", rcPath)
-		fmt.Printf("└── ✨ Run 'source %s' to apply changes.\n", rcPath)
+		fmt.Printf("✓ Successfully updated PROX_API_KEY in %s\n", rcPath)
+		fmt.Printf("✨ Run 'source %s' to apply changes.\n", rcPath)
 	} else {
 		fmt.Printf("✓ Configuration matches perfectly. No changes needed in %s\n", rcPath)
 	}
@@ -127,7 +127,7 @@ func SetupEnvironment() error {
 func runCommand(commandStr string) error {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/c", commandStr)
+		cmd = exec.Command("powershell", "-NoProfile", "-NoLogo", "-Command", commandStr)
 	} else {
 		cmd = exec.Command("bash", "-c", commandStr)
 	}
@@ -180,11 +180,11 @@ func SetupShellCompletion() error {
 	}
 
 	if updated {
-		fmt.Printf("│\n├── ✓ Tab-completion injected/updated successfully in: %s\n", targetPath)
+		fmt.Printf("✓ Tab-completion injected/updated successfully in: %s\n", targetPath)
 		if runtime.GOOS == "windows" {
-			fmt.Println("└── ✨ Restart your PowerShell window to activate autocomplete!")
+			fmt.Println("✨ Restart your PowerShell window to activate autocomplete!")
 		} else {
-			fmt.Printf("└── ✨ Run 'source %s' to activate autocomplete!\n", targetPath)
+			fmt.Printf("✨ Run 'source %s' to activate autocomplete!\n", targetPath)
 		}
 	} else {
 		fmt.Printf("✓ Tab-completion is already up to date in %s. No updates required.\n", targetPath)
