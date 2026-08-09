@@ -210,7 +210,7 @@ func (c NameCommand) Help() string {
 	return help
 }
 func (c NameCommand) SubCommands() []string {
-	return []string{"--argument", "help"} // This is for AI agents, list only those with meaningful names (Example: --argument instead of -a)
+	return []string{"--argument", "help"} // This is for AI agents, list only those with meaningful names (Example: --argument instead of -a) 
 }
 func init() {
 	Register("name", NameCommand{})
