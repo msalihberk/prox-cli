@@ -43,6 +43,12 @@ A modern Go-based command-line suite for everyday tasks such as encoding, passwo
 
 # 🚀 Overview
 
+<div align="center">
+
+<img src="assets/demo.gif" width="95%" alt="Prox CLI Demo"/>
+
+</div>
+
 prox-cli is a modular command-line application written in Go. It combines a set of useful utilities into a single, easy-to-use tool for developers, pentesters, and researchers who want quick access to common operations directly from the terminal.
 
 The project is built around a simple command registry, making it straightforward to add new functionality without rewriting the CLI structure. This modular design is one of the core strengths of the project, and new commands can be introduced by adding a small command file under the commands directory.

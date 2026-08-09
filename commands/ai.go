@@ -135,7 +135,7 @@ func extractExecutionDirective(text string) (string, bool) {
 	if trimmed == "" {
 		return "", false
 	}
-
+	trimmed = strings.TrimSpace(strings.ReplaceAll(trimmed, "\r", ""))
 	markers := []string{"PROX_EXECUTE:", "PROX_RUN:", "EXECUTE:"}
 	for _, marker := range markers {
 		idx := strings.Index(strings.ToUpper(trimmed), marker)
@@ -149,7 +149,7 @@ func extractExecutionDirective(text string) (string, bool) {
 		candidate = strings.TrimPrefix(candidate, "```")
 		candidate = strings.TrimSuffix(candidate, "```")
 		candidate = strings.TrimSpace(candidate)
-		if candidate != "" && looksLikeCommand(candidate) {
+		if candidate != "" {
 			return candidate, true
 		}
 	}
@@ -181,7 +181,7 @@ func extractCommandCandidate(text string) (string, bool) {
 			candidate = strings.TrimPrefix(candidate, "```")
 			candidate = strings.TrimSuffix(candidate, "```")
 			candidate = strings.TrimSpace(candidate)
-			if candidate != "" && looksLikeCommand(candidate) {
+			if candidate != "" {
 				return candidate, true
 			}
 		}
@@ -194,25 +194,9 @@ func extractCommandCandidate(text string) (string, bool) {
 		if candidate == "" {
 			continue
 		}
-		if looksLikeCommand(candidate) {
-			return candidate, true
-		}
+		return candidate, true
 	}
 	return "", false
-}
-
-func looksLikeCommand(text string) bool {
-	candidate := strings.TrimSpace(text)
-	if candidate == "" {
-		return false
-	}
-	if strings.Contains(strings.ToLower(candidate), "here is") || strings.Contains(strings.ToLower(candidate), "you should") {
-		return false
-	}
-	if strings.Contains(candidate, " ") || strings.Contains(candidate, "\t") {
-		return true
-	}
-	return strings.Contains(candidate, "\\") || strings.Contains(candidate, "/") || strings.HasPrefix(candidate, "prox ") || strings.HasPrefix(candidate, "git ") || strings.HasPrefix(candidate, "ls ") || strings.HasPrefix(candidate, "dir ") || strings.HasPrefix(candidate, "curl ") || strings.HasPrefix(candidate, "wget ")
 }
 
 func splitAgentResponse(response string) (string, string, bool) {
@@ -243,9 +227,9 @@ func splitAgentResponse(response string) (string, string, bool) {
 func runShellCommand(command string) error {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/C", command)
+		cmd = exec.Command("pwsh", "-NoProfile", "-NoLogo", "-Command", command)
 	} else {
-		cmd = exec.Command("sh", "-c", command)
+		cmd = exec.Command("bash", "-c", command)
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
