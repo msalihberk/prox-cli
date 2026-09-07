@@ -7,7 +7,7 @@
 
 ### Lightweight, modular, and extensible CLI toolkit for developers and security researchers
 
-A modern Go-based command-line suite for everyday tasks such as encoding, password generation, hashing, port scanning, sample text generation, and AI-assisted terminal help.
+A modern Go-based command-line suite for everyday tasks such as encoding, password generation, hashing, port scanning, sample text generation, and AI-assisted terminal workflows.
 
 > This project is currently in beta and is being actively shaped around a modular architecture that makes it easy to extend.
 
@@ -55,15 +55,16 @@ The project is built around a simple command registry, making it straightforward
 
 # ✨ Features
 
-- 🎨 **Modernized TUI**: Highly polished terminal UI with colorized output, including a dual-tone cyan/magenta ASCII shield banner in the help command.
-- 🤖 **Claude Code-like Agent Mode**: Interactive AI terminal copilot (`prox agent`) with dynamic thinking loaders and colorized prompts.
-- 🛡️ **Secure Execution Prompt**: Context-aware confirmation dialog that automatically prompts you before running commands suggested by the AI agent (safe mode).
+- 🎨 **Minimal Agent TUI**: Focused Bubble Tea interface with responsive text wrapping, status animation, command output, and explicit approval controls.
+- 🤖 **Interactive Agent Mode**: AI terminal copilot available through `prox agent` and `prox ai agent`.
+- 🧠 **Bounded Conversation Memory**: The agent keeps recent user, assistant, and command messages within a 6,000-character context budget.
+- 🛡️ **Risk Review Layer**: Proposed commands are analyzed separately for destructive behavior, privilege escalation, data loss, and credential exposure before approval.
 - 🔐 Base64 encoding and decoding with optional file input/output support
 - 🧪 Secure random key generation with customizable character sets
 - 🧮 Hash generation for MD5, SHA1, SHA256, and SHA512
 - 🌐 Port scanning for a target host and a custom port range
 - 📝 Lorem Ipsum text generation for testing and placeholders
-- 🧩 Extensible command architecture for future modules
+- 🧩 **Extensible command architecture**: Commands are registered through a shared interface and registry.
 - 🛠 Clean and minimal Go-based implementation
 
 # 📁 Project Structure
@@ -75,7 +76,7 @@ prox-cli/
 ├── main.go       # CLI entry point
 ├── go.mod        # Go module definition
 ├── LICENSE       # Apache 2.0 License
-├── NOTICE        # Third-party software copyrights and legal notices
+├── NOTICE     # Third-party software copyrights and legal notices
 └── README.md     # Project documentation
 ```
 
@@ -121,6 +122,18 @@ go run . help
 > [!NOTE]
 > If you haven't entered a valid API key in the setup command before, use the `prox setup setup-env` command to add your API key as an environment variable for using ai features.
 
+## Agent mode
+
+Start the interactive terminal agent:
+
+```bash
+prox agent
+# or
+prox ai agent
+```
+
+The agent remembers recent conversation turns within a 6,000-character context limit. When it proposes a shell command, a separate risk review analyzes the command before the confirmation screen. Commands are never executed without explicit `Y` confirmation.
+
 Here are a few common examples using the current command set:
 
 ```bash
@@ -148,6 +161,9 @@ prox lorem -w 12 -p 2
 # Use AI helpers (requires PROX_API_KEY)
 prox ai cmd "list files in the current directory"
 
+# Start the interactive agent (requires PROX_API_KEY)
+prox agent
+
 ```
 
 # 🧰 Available Commands
@@ -162,58 +178,38 @@ prox ai cmd "list files in the current directory"
 | `portscan` | Scan a target host for open ports concurrently |
 | `lorem` | Generate dummy Lorem Ipsum text for testing and placeholders |
 | `ai` | Generate terminal commands, discover relevant modules, or explain logs and payloads |
+| `agent` | Start the interactive AI agent with bounded context and command risk review |
 | `setup` | Make it easier to access Prox, save your API key, and enable autocomplete |
 | `version` | Show the current version of the CLI |
 
 # 🧩 Adding Your Own Module
 
-Adding a new module is intentionally simple. Create a new Go file in the commands folder, implement the command interface, and register it in the initializer.
-
-If you enjoy the project while it is still in development, you can help by starring the repository, opening pull requests, or sharing your own modules with the community.
-
-You can also use the built-in argument parser from [commands/getargs.go](commands/getargs.go) to handle positional arguments and flags more cleanly.
-
-**Module Template ⬇️**
+Create a Go file under `commands/`, implement the shared `core.Commander` interface, and register the command with `core.Register`. Use the parser from [core/getargs.go](core/getargs.go) for positional arguments and flags.
 
 ```go
-/* Copyright 2026 Mustafa Salih Berk
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License. */
-
 package commands
 
 import (
 	"prox-cli/core"
 )
 
-type NameCommand struct{}
+type ExampleCommand struct{}
 
-func (c NameCommand) Execute(args []string) error {
+func (c ExampleCommand) Execute(args []string) error {
 	return nil
 }
 
-func (c NameCommand) Description() string {
-	return "Description"
+func (c ExampleCommand) Description() string {
+	return "Example command"
 }
-func (c NameCommand) Help() string {
-	help := "Usage: prox Name"
-	return help
+func (c ExampleCommand) Help() string {
+	return "Usage: prox example"
 }
-func (c NameCommand) SubCommands() []string {
-	return []string{"--argument", "help"} // This is for AI agents, list only those with meaningful names (Example: --argument instead of -a) 
+func (c ExampleCommand) SubCommands() []string {
+	return []string{"help"}
 }
 func init() {
-	Register("name", NameCommand{})
+	core.Register("example", ExampleCommand{})
 }
 ```
 
@@ -222,3 +218,5 @@ func init() {
 This project is licensed under the Apache License 2.0.
 
 See [LICENSE](LICENSE) for more details.
+
+Third-party notices are available in [NOTICE.md](NOTICE.md).

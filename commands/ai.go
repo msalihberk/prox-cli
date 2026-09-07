@@ -15,7 +15,6 @@ limitations under the License. */
 package commands
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -66,7 +65,7 @@ func queryGemini(contents []GeminiContent, systemInstruction string) (string, er
 		return "", errors.New("PROX_API_KEY environment variable is not set. Please set it before using AI features")
 	}
 
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=" + apiKey
 
 	reqBody := GeminiRequest{
 		Contents: contents,
@@ -225,15 +224,22 @@ func splitAgentResponse(response string) (string, string, bool) {
 }
 
 func runShellCommand(command string) error {
+	output, err := executeShellCommand(command)
+	if output != "" {
+		fmt.Fprintln(os.Stdout, output)
+	}
+	return err
+}
+
+func executeShellCommand(command string) (string, error) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("pwsh", "-NoProfile", "-NoLogo", "-Command", command)
 	} else {
 		cmd = exec.Command("bash", "-c", command)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(output)), err
 }
 
 func maybeExecuteSuggestedCommand(response string) {
@@ -273,93 +279,7 @@ func prepareAgentRequest(input string) string {
 }
 
 func startInteractiveAgent() error {
-	// Full screen / Clear screen
-	if !core.IsPiped() {
-		fmt.Print("\033[H\033[2J")
-		fmt.Println(core.GetColorizedBanner())
-		fmt.Println()
-
-		// Progressive booting animations
-		time.Sleep(150 * time.Millisecond)
-		core.PrintInfo("Initializing Prox Copilot Engine...")
-		time.Sleep(200 * time.Millisecond)
-		core.PrintSuccess("Loaded AI cognitive models successfully.")
-		time.Sleep(150 * time.Millisecond)
-		core.PrintSuccess("Established connection to generative API service.")
-		time.Sleep(200 * time.Millisecond)
-		core.PrintInfo("Agent Safe Mode: Active. Command execution requires explicit approval.")
-		fmt.Println()
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Printf("%s %s ", core.StyleText("prox-agent", core.ColorLightCyan+core.ColorBold), core.StyleText("›", core.ColorLightGreen+core.ColorBold))
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				fmt.Println()
-				return nil
-			}
-			return err
-		}
-		input = strings.TrimSpace(input)
-		if input == "" {
-			continue
-		}
-		if strings.EqualFold(input, "exit") || strings.EqualFold(input, "quit") {
-			core.PrintInfo("Agent session ended. Goodbye!")
-			return nil
-		}
-
-		systemInstruction := "You are Prox Agent, a terminal-native developer assistant. " +
-			"This is a real command-capable agent session. " +
-			"Important: if the user requests a shell command or an action that must be executed, reply with EXACTLY this format: PROX_EXECUTE: <command>. " +
-			"If no command should be executed, answer normally and do not include an execution token. " +
-			"Keep replies concise, practical, and developer-focused. " +
-			"Never include markdown fences when returning a command. " +
-			"CRITICAL: The user is running on the following OS: " + runtime.GOOS + ". " +
-			"Make sure all generated commands are fully compatible with " + runtime.GOOS + "."
-
-		spinnerStop := core.ShowSpinner("Agent is thinking")
-		result, err := queryGemini([]GeminiContent{
-			{
-				Parts: []GeminiPart{
-					{Text: "User request: " + prepareAgentRequest(input)},
-				},
-			},
-		}, systemInstruction)
-		spinnerStop <- true
-		if err != nil {
-			core.PrintError("%v", err)
-			continue
-		}
-
-		cleaned := strings.TrimSpace(result)
-		if cleaned == "" {
-			continue
-		}
-
-		explanation, cmd, hasCmd := splitAgentResponse(cleaned)
-		if hasCmd {
-			if explanation != "" {
-				fmt.Println()
-				printSlowText(explanation)
-			}
-			box := core.DrawBox("PROPOSED COMMAND", cmd, core.ColorLightCyan)
-			fmt.Println("\n" + box)
-			if core.PromptConfirm("Run the proposed command?", false) {
-				core.PrintSuccess("Running command: %s", cmd)
-				if err := runShellCommand(cmd); err != nil {
-					core.PrintError("Command execution failed: %v", err)
-				}
-			} else {
-				core.PrintWarning("Command execution cancelled by user.")
-			}
-		} else {
-			fmt.Println()
-			printSlowText(cleaned)
-		}
-	}
+	return core.RunAgentTUI(requestAgentResponse, executeShellCommand, assessCommandRisk)
 }
 
 func explainCommand(parser *core.Parser) error {
@@ -415,7 +335,92 @@ func explainCommand(parser *core.Parser) error {
 	}
 	return nil
 }
-func basicQuestionCommand(systemInstruction string, userPrompt string) error {
+func agentSystemInstruction() string {
+	return "You are Prox Agent, a terminal-native developer assistant. " +
+		"This is a real command-capable agent session. " +
+		"Important: if the user requests a shell command or an action that must be executed, reply with EXACTLY this format: PROX_EXECUTE: <command>. " +
+		"If no command should be executed, answer normally and do not include an execution token. " +
+		"Keep replies concise, practical, and developer-focused. " +
+		"Use the supplied recent conversation context to resolve follow-up questions without repeating prior answers. " +
+		"Never include markdown fences when returning a command. " +
+		"CRITICAL: The user is running on the following OS: " + runtime.GOOS + ". " +
+		"Make sure all generated commands are fully compatible with " + runtime.GOOS + "."
+}
+
+func requestAgentResponse(userPrompt string, history []core.AgentMessage) (string, error) {
+	contents := make([]GeminiContent, 0, len(history)+1)
+	for _, message := range history {
+		role := "user"
+		if message.Role == "assistant" {
+			role = "model"
+		}
+		contents = append(contents, GeminiContent{
+			Role:  role,
+			Parts: []GeminiPart{{Text: message.Content}},
+		})
+	}
+	if len(history) == 0 || history[len(history)-1].Role != "user" || history[len(history)-1].Content != userPrompt {
+		contents = append(contents, GeminiContent{
+			Role:  "user",
+			Parts: []GeminiPart{{Text: "User Request: " + prepareAgentRequest(userPrompt)}},
+		})
+	}
+
+	result, err := queryGemini(contents, agentSystemInstruction())
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(result), nil
+}
+
+func assessCommandRisk(command string) (core.RiskAssessment, error) {
+	systemInstruction := "You are a command risk assessment layer. Analyze the proposed terminal command for data loss, privilege escalation, credential exposure, destructive behavior, network impact, and irreversible changes. " +
+		"Return ONLY valid JSON in this exact shape: {\"level\":\"low|medium|high\",\"reason\":\"brief explanation\"}. " +
+		"Do not execute the command and do not include markdown."
+	result, err := queryGemini([]GeminiContent{{
+		Role:  "user",
+		Parts: []GeminiPart{{Text: "Proposed command:\n" + command}},
+	}}, systemInstruction)
+	if err != nil {
+		return core.RiskAssessment{}, err
+	}
+
+	cleaned := strings.TrimSpace(result)
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+	var assessment core.RiskAssessment
+	if err := json.Unmarshal([]byte(cleaned), &assessment); err != nil {
+		return core.RiskAssessment{}, fmt.Errorf("invalid risk assessment: %w", err)
+	}
+	assessment.Level = strings.ToLower(strings.TrimSpace(assessment.Level))
+	if assessment.Level != "low" && assessment.Level != "medium" && assessment.Level != "high" {
+		return core.RiskAssessment{}, fmt.Errorf("invalid risk level %q", assessment.Level)
+	}
+	return assessment, nil
+}
+
+func TUIChat(userPrompt string) string {
+	result, err := requestAgentResponse(userPrompt, nil)
+	if err != nil {
+		return "Agent error: " + err.Error()
+	}
+
+	if !core.IsPiped() {
+		core.PrintMessage("Thinking...")
+	}
+
+	cleanedResult := strings.TrimSpace(result)
+	cleanedResult = strings.TrimPrefix(cleanedResult, "```bash")
+	cleanedResult = strings.TrimPrefix(cleanedResult, "```")
+	cleanedResult = strings.TrimSuffix(cleanedResult, "```")
+	cleanedResult = strings.TrimSpace(cleanedResult)
+
+	return cleanedResult
+}
+func BasicQuestionCommand(systemInstruction string, userPrompt string) error {
 
 	if !core.IsPiped() {
 		core.PrintMessage("Thinking...")
@@ -456,7 +461,7 @@ func cmdCommand(parser *core.Parser) error {
 	systemInstruction := "You are a precise CLI assistant. Convert the user request into a single one-liner terminal command. " +
 		"Output ONLY the raw executable command, nothing else. No markdown formatting, no code blocks, no explanations, " +
 		"no text before or after."
-	err := basicQuestionCommand(systemInstruction, prompt)
+	err := BasicQuestionCommand(systemInstruction, prompt)
 	if err != nil {
 		return errors.New("failed to generate command: " + err.Error())
 	}
@@ -472,7 +477,7 @@ func findCommand(parser *core.Parser) error {
 		"built-in prox modules or commands that can accomplish the task. Output ONLY the names of the modules or commands " +
 		"and necessary arguments, nothing else. No explanations, no text before or after.If you don't know, say so. This is tool's usage guide: " +
 		core.GetAllHelpTexts()
-	err := basicQuestionCommand(systemInstruction, prompt)
+	err := BasicQuestionCommand(systemInstruction, prompt)
 	if err != nil {
 		return errors.New("failed to find relevant commands: " + err.Error())
 	}
