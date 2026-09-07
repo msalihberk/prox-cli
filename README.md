@@ -76,7 +76,7 @@ prox-cli/
 ├── main.go       # CLI entry point
 ├── go.mod        # Go module definition
 ├── LICENSE       # Apache 2.0 License
-├── NOTICE     # Third-party software copyrights and legal notices
+├── NOTICE        # Third-party software copyrights and legal notices
 └── README.md     # Project documentation
 ```
 
