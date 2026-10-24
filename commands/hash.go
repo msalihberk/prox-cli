@@ -87,6 +87,15 @@ func (v HashCommand) Execute(args []string) error {
 
 		reader = file
 		algoName, hashResult, err = calculateHash(reader, parser)
+		if parser.GetAlias("e", "compare").Found {
+			inputStr := parser.GetAlias("e", "compare").Value
+
+			if hashResult != inputStr {
+				core.PrintInfo("%s", "Not Equal")
+				return nil
+			}
+			core.PrintInfo("%s", "Equal")
+		}
 	} else {
 		return errors.New("please specify an input using -s <string> or -f <file>")
 	}
@@ -112,10 +121,11 @@ func (v HashCommand) Help() string {
 	help += "\n  -b, --sha512      : Compute SHA512 hash"
 	help += "\n  -c, --md5         : Compute MD5 hash"
 	help += "\n  -d, --sha1        : Compute SHA1 hash"
+	help += "\n  -e --compare      : Compare hashes"
 	return help
 }
 func (v HashCommand) SubCommands() []string {
-	return []string{"--string", "--file", "--sha256", "--sha512", "--md5", "--sha1", "help"}
+	return []string{"--string", "--file", "--sha256", "--sha512", "--md5", "--sha1", "--compare", "help"}
 }
 func init() {
 	core.Register("hash", HashCommand{})
