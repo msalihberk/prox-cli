@@ -45,7 +45,7 @@ A modern Go-based command-line suite for everyday tasks such as encoding, passwo
 
 <div align="center">
 
-<img src="assets/demo.gif" width="95%" alt="Prox CLI Demo"/>
+<img src="assets/demo.gif" width="95%" alt="Prox CLI Demo GIF"/>
 
 </div>
 
