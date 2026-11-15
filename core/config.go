@@ -16,37 +16,83 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
+const (
+	DefaultAIModel                 = "gemini-flash-lite-latest"
+	DefaultAIRequestTimeoutSeconds = 30
+)
+
 type Config struct {
-	AutoApprove bool `json:"auto_approve"`
+	AutoApprove             bool   `json:"auto_approve"`
+	AIModel                 string `json:"ai_model,omitempty"`
+	AIRequestTimeoutSeconds int    `json:"ai_request_timeout_seconds,omitempty"`
 }
 
 func GetConfigPath() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
 	return filepath.Join(home, ".prox_config.json")
 }
 
-func LoadConfig() Config {
-	path := GetConfigPath()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return Config{AutoApprove: false}
+func DefaultConfig() Config {
+	return Config{
+		AIModel:                 DefaultAIModel,
+		AIRequestTimeoutSeconds: DefaultAIRequestTimeoutSeconds,
 	}
+}
+
+func LoadConfig() (Config, error) {
+	path := GetConfigPath()
+	if path == "" {
+		return Config{}, errors.New("locate user home directory")
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return DefaultConfig(), nil
+	}
+	if err != nil {
+		return Config{}, fmt.Errorf("read configuration: %w", err)
+	}
+
+	cfg, err := decodeConfig(data)
+	if err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+func decodeConfig(data []byte) (Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{AutoApprove: false}
+		return Config{}, fmt.Errorf("decode configuration: %w", err)
 	}
-	return cfg
+	if cfg.AIModel == "" {
+		cfg.AIModel = DefaultAIModel
+	}
+	if cfg.AIRequestTimeoutSeconds == 0 {
+		cfg.AIRequestTimeoutSeconds = DefaultAIRequestTimeoutSeconds
+	}
+	return cfg, nil
 }
 
 func SaveConfig(cfg Config) error {
 	path := GetConfigPath()
+	if path == "" {
+		return errors.New("locate user home directory")
+	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	if err := atomicWriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("write configuration: %w", err)
+	}
+	return nil
 }

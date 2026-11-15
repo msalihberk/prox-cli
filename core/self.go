@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -92,15 +91,15 @@ func SetupEnvironment() error {
 	if apiKey == "" {
 		return errors.New("API key cannot be empty")
 	}
+	if strings.ContainsAny(apiKey, "\r\n\x00") {
+		return errors.New("API key must not contain newline or null characters")
+	}
 
+	if err := setUserAPIKey(apiKey); err != nil {
+		return fmt.Errorf("save PROX_API_KEY: %w", err)
+	}
 	if runtime.GOOS == "windows" {
-		fmt.Println("⏳ Checking Windows Registry for PROX_API_KEY...")
-		currentVal := os.Getenv("PROX_API_KEY")
-		if currentVal == apiKey {
-			fmt.Println("✓ PROX_API_KEY is already up to date in environment variables.")
-			return nil
-		}
-		runCommand(fmt.Sprintf("[Environment]::SetEnvironmentVariable(\"PROX_API_KEY\", \"%s\", \"User\")\n", apiKey))
+		fmt.Println("✓ PROX_API_KEY saved for your Windows user account. Restart terminals to apply it.")
 		return nil
 	}
 
@@ -108,38 +107,21 @@ func SetupEnvironment() error {
 	if err != nil {
 		return err
 	}
-
-	desiredConfig := fmt.Sprintf("export PROX_API_KEY=\"%s\"", apiKey)
-	updated, err := updateTargetFileBlock(rcPath, "ENV_CONFIG", desiredConfig)
-	if err != nil {
-		return err
-	}
-
-	if updated {
-		fmt.Printf("✓ Successfully updated PROX_API_KEY in %s\n", rcPath)
-		fmt.Printf("✨ Run 'source %s' to apply changes.\n", rcPath)
-	} else {
-		fmt.Printf("✓ Configuration matches perfectly. No changes needed in %s\n", rcPath)
-	}
-
+	fmt.Printf("✓ PROX_API_KEY saved in %s\n", rcPath)
+	fmt.Printf("✨ Run 'source %s' to apply changes.\n", rcPath)
 	return nil
 }
-func runCommand(commandStr string) error {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("powershell", "-NoProfile", "-NoLogo", "-Command", commandStr)
-	} else {
-		cmd = exec.Command("bash", "-c", commandStr)
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
-	if err != nil {
-		fmt.Printf("An error occurred: %v\n", err)
+func RemoveAPIKey() error {
+	if err := removeUserAPIKey(); err != nil {
+		return fmt.Errorf("remove saved PROX_API_KEY: %w", err)
+	}
+	if err := os.Unsetenv("PROX_API_KEY"); err != nil {
+		return fmt.Errorf("clear current PROX_API_KEY: %w", err)
 	}
 	return nil
 }
+
 func SetupShellCompletion() error {
 	var targetPath string
 	var shellName string
@@ -205,9 +187,13 @@ func updateTargetFileBlock(filePath, blockIdentifier, payload string) (bool, err
 
 	fileStr := string(content)
 
-	if strings.Contains(fileStr, startTag) && strings.Contains(fileStr, endTag) {
-		startIndex := strings.Index(fileStr, startTag)
-		endIndex := strings.Index(fileStr, endTag) + len(endTag)
+	startIndex := strings.Index(fileStr, startTag)
+	endTagIndex := strings.Index(fileStr, endTag)
+	if startIndex >= 0 || endTagIndex >= 0 {
+		if startIndex < 0 || endTagIndex < startIndex {
+			return false, fmt.Errorf("incomplete or misordered Prox configuration block in %s", filePath)
+		}
+		endIndex := endTagIndex + len(endTag)
 		existingBlock := fileStr[startIndex:endIndex]
 
 		if existingBlock == newBlockContent {
@@ -222,8 +208,48 @@ func updateTargetFileBlock(filePath, blockIdentifier, payload string) (bool, err
 		fileStr += newBlockContent + "\n"
 	}
 
-	err = os.WriteFile(filePath, []byte(fileStr), 0644)
+	mode := os.FileMode(0600)
+	if info, err := os.Stat(filePath); err == nil {
+		mode = info.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	err = atomicWriteFile(filePath, []byte(fileStr), mode)
 	return true, err
+}
+
+func removeTargetFileBlock(filePath, blockIdentifier string) (bool, error) {
+	content, err := os.ReadFile(filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	startTag := fmt.Sprintf("%s_%s", configBlockStart, blockIdentifier)
+	endTag := fmt.Sprintf("%s_%s", configBlockEnd, blockIdentifier)
+	start := strings.Index(string(content), startTag)
+	if start < 0 {
+		if strings.Contains(string(content), endTag) {
+			return false, fmt.Errorf("misordered Prox configuration block in %s", filePath)
+		}
+		return false, nil
+	}
+	end := strings.Index(string(content)[start+len(startTag):], endTag)
+	if end < 0 {
+		return false, fmt.Errorf("incomplete Prox configuration block in %s", filePath)
+	}
+	end += start + len(startTag) + len(endTag)
+	updated := append([]byte{}, content[:start]...)
+	updated = append(updated, content[end:]...)
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return false, err
+	}
+	if err := atomicWriteFile(filePath, updated, info.Mode().Perm()); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func getUnixShellRcPath() (string, error) {

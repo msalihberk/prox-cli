@@ -57,9 +57,11 @@ func controlArguments() {
 
 	subCommand := strings.TrimLeft(os.Args[1], "-")
 	subArgs := os.Args[2:]
-	input, errp := readPipeInputs()
-	if errp == nil && input != nil {
-		subArgs = append(subArgs, input...)
+	if !commandReadsStdin(subCommand, subArgs) {
+		input, errp := readPipeInputs()
+		if errp == nil && input != nil {
+			subArgs = append(subArgs, input...)
+		}
 	}
 
 	if subCommand == "v" {
@@ -87,6 +89,11 @@ func controlArguments() {
 		os.Exit(1)
 	}
 }
+
+func commandReadsStdin(command string, args []string) bool {
+	return command == "ai" && len(args) > 0 && args[0] == "explain"
+}
+
 func getClosestCommand(input string) string {
 	closest := ""
 	minDistance := 3

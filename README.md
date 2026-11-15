@@ -59,6 +59,8 @@ The project is built around a simple command registry, making it straightforward
 - 🤖 **Interactive Agent Mode**: AI terminal copilot available through `prox agent` and `prox ai agent`.
 - 🧠 **Bounded Conversation Memory**: The agent keeps recent user, assistant, and command messages within a 6,000-character context budget.
 - 🛡️ **Risk Review Layer**: Proposed commands are analyzed separately for destructive behavior, privilege escalation, data loss, and credential exposure before approval.
+- 🗂️ **Manageable Agent Sessions**: Name, list, resume, export, delete, or clear locally saved conversations.
+- ⏱️ **Configurable AI Requests**: Select a Gemini model, set a bounded request timeout, and cancel active agent operations.
 - 🔐 Base64 encoding and decoding with optional file input/output support
 - 🧪 Secure random key generation with customizable character sets
 - 🧮 Hash generation for MD5, SHA1, SHA256, and SHA512
@@ -132,7 +134,49 @@ prox agent
 prox ai agent
 ```
 
-The agent remembers recent conversation turns within a 6,000-character context limit. When it proposes a shell command, a separate risk review analyzes the command before the confirmation screen. Commands are never executed without explicit `Y` confirmation.
+The agent remembers recent conversation turns within a 6,000-character request context. Conversations are saved locally so they can be resumed; use the session commands below to review, export, or delete them. When the agent proposes a shell command, a separate risk review analyzes the command before the confirmation screen. Commands are never executed without explicit `Y` confirmation.
+
+During command review, use `E` to edit the proposal (the edited command is risk-checked again), `C` to copy it, `Y` to run it, or `N` to cancel. Press `Esc` during an AI request or command execution to cancel the current operation. In the prompt, `Ctrl+J` inserts a newline and `Ctrl+P` / `Ctrl+N` navigate the current session's prompt history.
+
+### AI configuration and privacy
+
+```bash
+# Check AI configuration without revealing the API key
+prox ai status
+
+# Configure the Gemini model and request timeout (5-120 seconds)
+prox ai config model gemini-flash-lite-latest
+prox ai config timeout 45
+prox ai config key set
+prox ai config key remove
+
+# The same modules are also registered as standalone commands
+prox ai-config status
+prox ai-sessions list
+
+# Manage saved agent conversations
+prox ai sessions list
+prox ai sessions resume <session-id>
+prox ai sessions rename <session-id> "Release investigation"
+prox ai sessions export <session-id> session.json
+prox ai sessions delete <session-id>
+prox ai sessions clear
+```
+
+AI requests use `PROX_API_KEY` from the environment. `prox ai config key set` reuses the setup wizard; `key remove` asks for confirmation and removes the Prox-managed setting. The key is not written to the Prox JSON config, but the environment-based setup stores it in the selected shell profile on Unix or the current user's environment on Windows; it is not an encrypted credential vault. The Unix shell profile is restricted to owner-only permissions. The parent shell may retain an already inherited key until it is unset or restarted. Agent session history is stored locally in `~/.prox_agent_history.json` (in the current user's home directory); exported conversations may contain sensitive prompts and outputs, so keep export files private. Deleting a session removes it from the local history file; `sessions clear` asks for confirmation before removing all saved sessions. AI features send the explicitly requested prompt and conversation context to the configured provider. Project files and Git context are not collected automatically.
+
+`ai explain` accepts text, a file, standard input (up to 1 MiB), or a deliberately limited project summary:
+
+```bash
+prox ai explain "connection refused"
+prox ai explain --file app.log
+type app.log | prox ai explain
+prox ai explain "summarize the project structure" --project
+```
+
+`--project` is opt-in and interactive only. It previews Git status, unstaged diff statistics, `README.md`, and `go.mod` (bounded to 4 KiB per Git summary and 12 KiB per file); likely credential patterns are redacted before preview. Review the complete preview and confirm before it is sent. Redaction is best-effort, so do not approve content you do not want to share. Source files, staged diff contents, and other project files are not included.
+
+AI command output is newline-terminated for convenient piping. `ai find` suggests matching built-in commands with a reason and example; verify suggestions against `prox help` before use.
 
 Here are a few common examples using the current command set:
 

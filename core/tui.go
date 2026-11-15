@@ -16,6 +16,8 @@ package core
 
 import (
 	"bufio"
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -32,16 +34,24 @@ type AgentMessage struct {
 	Content string
 }
 
-type AgentResponder func(string, []AgentMessage) (string, error)
+type AgentResponder func(context.Context, string, []AgentMessage) (string, error)
 
-type CommandExecutor func(string) (string, error)
+type CommandExecutor func(context.Context, string) (string, error)
 
 type RiskAssessment struct {
 	Level  string
 	Reason string
 }
 
-type CommandRiskAssessor func(string) (RiskAssessment, error)
+type CommandRiskAssessor func(context.Context, string) (RiskAssessment, error)
+
+type AgentTool struct {
+	Name             string
+	Description      string
+	Usage            string
+	RequiresApproval func([]string) bool
+	Execute          func(context.Context, []string, bool) (string, error)
+}
 
 var (
 	tuiAccentColor  = lipgloss.Color("14")
@@ -213,22 +223,35 @@ func PromptConfirm(promptText string, defaultVal bool) bool {
 }
 
 type agentTUIModel struct {
-	viewport    viewport.Model
-	textarea    textarea.Model
-	width       int
-	height      int
-	ready       bool
-	showConfirm bool
-	pendingCmd  string
-	pendingRisk RiskAssessment
-	messages    []string
-	history     []AgentMessage
-	status      string
-	busy        bool
-	animation   int
-	respond     AgentResponder
-	execute     CommandExecutor
-	assessRisk  CommandRiskAssessor
+	viewport        viewport.Model
+	textarea        textarea.Model
+	width           int
+	height          int
+	ready           bool
+	showConfirm     bool
+	editingCommand  bool
+	pendingCmd      string
+	pendingRisk     RiskAssessment
+	pendingTool     *AgentTool
+	pendingToolArgs []string
+	showToolConfirm bool
+	activeTab       int
+	tools           []AgentTool
+	messages        []string
+	history         []AgentMessage
+	sessionMessages []HistoryMessage
+	promptHistory   []string
+	historyIndex    int
+	historyDraft    string
+	sessionID       string
+	sessionName     string
+	status          string
+	busy            bool
+	animation       int
+	cancelCurrent   context.CancelFunc
+	respond         AgentResponder
+	execute         CommandExecutor
+	assessRisk      CommandRiskAssessor
 }
 
 type agentResponseMsg struct {
@@ -242,6 +265,17 @@ type commandResultMsg struct {
 	err     error
 }
 
+type agentToolResultMsg struct {
+	name   string
+	output string
+	err    error
+}
+
+type agentToolInvocation struct {
+	name string
+	args []string
+}
+
 type riskAssessmentMsg struct {
 	command    string
 	assessment RiskAssessment
@@ -253,6 +287,10 @@ type agentTickMsg struct{}
 const maxAgentContextChars = 6000
 
 func newAgentTUIModel(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor) agentTUIModel {
+	return newAgentTUIModelWithTools(respond, execute, assessRisk, nil)
+}
+
+func newAgentTUIModelWithTools(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor, tools []AgentTool) agentTUIModel {
 	input := textarea.New()
 	input.Focus()
 	input.Prompt = "│ "
@@ -267,6 +305,7 @@ func newAgentTUIModel(respond AgentResponder, execute CommandExecutor, assessRis
 		respond:    respond,
 		execute:    execute,
 		assessRisk: assessRisk,
+		tools:      append([]AgentTool(nil), tools...),
 	}
 }
 
@@ -287,16 +326,22 @@ func (m agentTUIModel) nextAgentTick() tea.Cmd {
 	})
 }
 
-func (m agentTUIModel) requestAgent(prompt string) tea.Cmd {
+func (m agentTUIModel) requestAgent(ctx context.Context, prompt string) tea.Cmd {
 	return func() tea.Msg {
-		response, err := m.respond(prompt, m.contextSnapshot())
+		response, err := m.respond(ctx, prompt, m.contextSnapshot())
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return agentResponseMsg{response: response, err: err}
 	}
 }
 
-func (m agentTUIModel) assessAgentCommand(command string) tea.Cmd {
+func (m agentTUIModel) assessAgentCommand(ctx context.Context, command string) tea.Cmd {
 	return func() tea.Msg {
-		assessment, err := m.assessRisk(command)
+		assessment, err := m.assessRisk(ctx, command)
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return riskAssessmentMsg{command: command, assessment: assessment, err: err}
 	}
 }
@@ -305,7 +350,32 @@ func (m *agentTUIModel) addAgentHistory(role, content string) {
 	if strings.TrimSpace(content) == "" {
 		return
 	}
-	m.history = append(m.history, AgentMessage{Role: role, Content: content})
+	m.sessionMessages = append(m.sessionMessages, HistoryMessage{Role: role, Content: content})
+	m.addAgentContext(AgentMessage{Role: role, Content: content})
+}
+
+func (m *agentTUIModel) addAgentContext(message AgentMessage) {
+	switch message.Role {
+	case "user", "assistant", "tool":
+	default:
+		message.Role = "tool"
+	}
+	maxContentChars := maxAgentContextChars - len([]rune(message.Role))
+	if maxContentChars < 0 {
+		maxContentChars = 0
+	}
+	content := []rune(message.Content)
+	if len(content) > maxContentChars {
+		const marker = "[...truncated...]\n"
+		markerRunes := []rune(marker)
+		if maxContentChars <= len(markerRunes) {
+			message.Content = string(markerRunes[:maxContentChars])
+		} else {
+			keep := maxContentChars - len(markerRunes)
+			message.Content = marker + string(content[len(content)-keep:])
+		}
+	}
+	m.history = append(m.history, message)
 	for contextCharacterCount(m.history) > maxAgentContextChars && len(m.history) > 1 {
 		m.history = m.history[1:]
 	}
@@ -325,10 +395,42 @@ func contextCharacterCount(messages []AgentMessage) int {
 	return count
 }
 
-func (m agentTUIModel) executeAgentCommand(command string) tea.Cmd {
+func (m agentTUIModel) executeAgentCommand(ctx context.Context, command string) tea.Cmd {
 	return func() tea.Msg {
-		output, err := m.execute(command)
+		output, err := m.execute(ctx, command)
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 		return commandResultMsg{command: command, output: output, err: err}
+	}
+}
+
+func (m agentTUIModel) executeAgentTool(ctx context.Context, tool AgentTool, args []string, approved bool) tea.Cmd {
+	return func() tea.Msg {
+		output, err := tool.Execute(ctx, args, approved)
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+		return agentToolResultMsg{name: tool.Name, output: output, err: err}
+	}
+}
+
+func (m *agentTUIModel) invokeAgentTool(tool AgentTool, args []string, approved bool) tea.Cmd {
+	m.busy = true
+	m.status = "RUNNING " + strings.ToUpper(tool.Name)
+	return tea.Batch(m.executeAgentTool(m.beginOperation(), tool, args, approved), m.nextAgentTick())
+}
+
+func (m *agentTUIModel) beginOperation() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancelCurrent = cancel
+	return ctx
+}
+
+func (m *agentTUIModel) finishOperation() {
+	if m.cancelCurrent != nil {
+		m.cancelCurrent()
+		m.cancelCurrent = nil
 	}
 }
 
@@ -346,10 +448,45 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentResponseMsg:
 		m.busy = false
+		m.finishOperation()
 		if message.err != nil {
+			if errors.Is(message.err, context.Canceled) && m.status == "CANCELLED" {
+				return m, nil
+			}
 			m.messages = append(m.messages, fmt.Sprintf("%s %s", lipgloss.NewStyle().Bold(true).Foreground(tuiWarningColor).Render("ERROR"), message.err.Error()))
 			m.status = "ERROR"
 		} else {
+			explanation, invocation, hasTool, toolErr := parseAgentToolDirective(message.response)
+			if hasTool {
+				if explanation != "" {
+					m.messages = append(m.messages, "AGENT "+explanation)
+				}
+				m.addAgentHistory("assistant", message.response)
+				if toolErr != nil {
+					m.messages = append(m.messages, "TOOL ERROR: "+toolErr.Error())
+					m.status = "ERROR"
+					m.refreshAgentMessages()
+					return m, nil
+				}
+				tool := findAgentTool(m.tools, invocation.name)
+				if tool == nil {
+					m.messages = append(m.messages, "TOOL ERROR: unknown Prox tool "+invocation.name)
+					m.status = "ERROR"
+					m.refreshAgentMessages()
+					return m, nil
+				}
+				if tool.RequiresApproval != nil && tool.RequiresApproval(invocation.args) {
+					m.pendingTool = tool
+					m.pendingToolArgs = invocation.args
+					m.showToolConfirm = true
+					m.status = "TOOL REVIEW REQUIRED"
+					m.refreshAgentMessages()
+					return m, nil
+				}
+				m.messages = append(m.messages, "TOOL "+tool.Name+" running...")
+				m.refreshAgentMessages()
+				return m, m.invokeAgentTool(*tool, invocation.args, false)
+			}
 			explanation, command, hasCommand := splitTUIAgentResponse(message.response)
 			m.addAgentHistory("assistant", message.response)
 			if explanation != "" {
@@ -360,7 +497,7 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.busy = true
 				m.status = "ASSESSING RISK"
 				m.refreshAgentMessages()
-				return m, tea.Batch(m.assessAgentCommand(command), m.nextAgentTick())
+				return m, tea.Batch(m.assessAgentCommand(m.beginOperation(), command), m.nextAgentTick())
 			} else {
 				m.status = "READY"
 			}
@@ -370,7 +507,11 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case riskAssessmentMsg:
 		m.busy = false
+		m.finishOperation()
 		if message.err != nil {
+			if errors.Is(message.err, context.Canceled) && m.status == "CANCELLED" {
+				return m, nil
+			}
 			m.messages = append(m.messages, fmt.Sprintf("%s Risk assessment failed: %s", lipgloss.NewStyle().Bold(true).Foreground(tuiWarningColor).Render("BLOCKED"), message.err.Error()))
 			m.status = "BLOCKED"
 			m.pendingCmd = ""
@@ -384,7 +525,11 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case commandResultMsg:
 		m.busy = false
+		m.finishOperation()
 		if message.err != nil {
+			if errors.Is(message.err, context.Canceled) && m.status == "CANCELLED" {
+				return m, nil
+			}
 			m.messages = append(m.messages, fmt.Sprintf("%s `%s`: %s", lipgloss.NewStyle().Bold(true).Foreground(tuiWarningColor).Render("FAILED"), message.command, message.err.Error()))
 			m.status = "ERROR"
 		} else {
@@ -394,6 +539,24 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.messages = append(m.messages, result)
 			m.addAgentHistory("tool", "Command output: "+message.output)
+			m.status = "READY"
+		}
+		m.refreshAgentMessages()
+		return m, nil
+
+	case agentToolResultMsg:
+		m.busy = false
+		m.finishOperation()
+		if message.err != nil {
+			if errors.Is(message.err, context.Canceled) && m.status == "CANCELLED" {
+				return m, nil
+			}
+			m.messages = append(m.messages, fmt.Sprintf("TOOL ERROR [%s]: %s", message.name, message.err))
+			m.status = "ERROR"
+		} else {
+			result := fmt.Sprintf("TOOL [%s]\n%s", message.name, message.output)
+			m.messages = append(m.messages, result)
+			m.addAgentHistory("tool", result)
 			m.status = "READY"
 		}
 		m.refreshAgentMessages()
@@ -416,18 +579,48 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textarea.SetWidth(maxInt(10, m.width-4))
 
 	case tea.KeyMsg:
+		if message.Type == tea.KeyTab && !m.busy && !m.showConfirm && !m.editingCommand && !m.showToolConfirm {
+			m.activeTab = (m.activeTab + 1) % 3
+			return m, nil
+		}
+		if message.Type == tea.KeyShiftTab && !m.busy && !m.showConfirm && !m.editingCommand && !m.showToolConfirm {
+			m.activeTab = (m.activeTab + 2) % 3
+			return m, nil
+		}
+		if m.showToolConfirm {
+			switch strings.ToLower(message.String()) {
+			case "y":
+				tool := *m.pendingTool
+				args := append([]string(nil), m.pendingToolArgs...)
+				m.showToolConfirm = false
+				m.pendingTool = nil
+				m.pendingToolArgs = nil
+				return m, m.invokeAgentTool(tool, args, true)
+			case "n", "esc":
+				toolName := m.pendingTool.Name
+				m.showToolConfirm = false
+				m.pendingTool = nil
+				m.pendingToolArgs = nil
+				m.status = "CANCELLED"
+				m.messages = append(m.messages, "TOOL CANCELLED ["+toolName+"]")
+				m.addAgentHistory("tool", "Tool call cancelled by user: "+toolName)
+				m.refreshAgentMessages()
+			}
+			return m, nil
+		}
 		if m.showConfirm {
 			switch strings.ToLower(message.String()) {
 			case "y":
 				command := m.pendingCmd
 				m.showConfirm = false
 				m.pendingCmd = ""
+				m.pendingRisk = RiskAssessment{}
 				m.busy = true
 				m.status = "EXECUTING"
 				m.messages = append(m.messages, fmt.Sprintf("Running `%s`...", command))
 				m.addAgentHistory("tool", "Command approved and executed: "+command)
 				m.refreshAgentMessages()
-				return m, tea.Batch(m.executeAgentCommand(command), m.nextAgentTick())
+				return m, tea.Batch(m.executeAgentCommand(m.beginOperation(), command), m.nextAgentTick())
 			case "n", "esc":
 				m.showConfirm = false
 				m.messages = append(m.messages, fmt.Sprintf("%s `%s`", lipgloss.NewStyle().Bold(true).Foreground(tuiAccentColor).Render("CANCELLED"), m.pendingCmd))
@@ -436,12 +629,92 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.status = "CANCELLED"
 				m.addAgentHistory("tool", "Command rejected by user.")
 				m.refreshAgentMessages()
+			case "c":
+				if err := CopyToClipboard(m.pendingCmd); err != nil {
+					m.messages = append(m.messages, "Clipboard copy failed: "+err.Error())
+					m.status = "REVIEW REQUIRED"
+				} else {
+					m.messages = append(m.messages, "Proposed command copied to clipboard.")
+					m.status = "REVIEW REQUIRED"
+				}
+				m.refreshAgentMessages()
+			case "e":
+				m.showConfirm = false
+				m.editingCommand = true
+				m.textarea.CharLimit = 4096
+				m.textarea.SetValue(m.pendingCmd)
+				m.status = "EDIT COMMAND"
+			}
+			return m, nil
+		}
+
+		if m.editingCommand {
+			switch message.Type {
+			case tea.KeyEsc:
+				m.editingCommand = false
+				m.textarea.CharLimit = 500
+				m.textarea.Reset()
+				m.showConfirm = true
+				m.status = "REVIEW REQUIRED"
+				return m, nil
+			case tea.KeyEnter:
+				command := strings.TrimSpace(m.textarea.Value())
+				if command == "" {
+					m.messages = append(m.messages, "Command cannot be empty; the original proposal is unchanged.")
+					m.refreshAgentMessages()
+					return m, nil
+				}
+				m.pendingCmd = command
+				m.pendingRisk = RiskAssessment{}
+				m.editingCommand = false
+				m.textarea.CharLimit = 500
+				m.textarea.Reset()
+				m.busy = true
+				m.status = "ASSESSING RISK"
+				m.refreshAgentMessages()
+				return m, tea.Batch(m.assessAgentCommand(m.beginOperation(), command), m.nextAgentTick())
+			}
+		}
+
+		switch message.Type {
+		case tea.KeyCtrlJ:
+			m.textarea.InsertString("\n")
+			return m, nil
+		case tea.KeyCtrlP:
+			if len(m.promptHistory) == 0 {
+				return m, nil
+			}
+			if m.historyIndex == len(m.promptHistory) {
+				m.historyDraft = m.textarea.Value()
+			}
+			if m.historyIndex > 0 {
+				m.historyIndex--
+			}
+			m.textarea.SetValue(m.promptHistory[m.historyIndex])
+			return m, nil
+		case tea.KeyCtrlN:
+			if m.historyIndex < len(m.promptHistory) {
+				m.historyIndex++
+				if m.historyIndex == len(m.promptHistory) {
+					m.textarea.SetValue(m.historyDraft)
+				} else {
+					m.textarea.SetValue(m.promptHistory[m.historyIndex])
+				}
 			}
 			return m, nil
 		}
 
 		switch message.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
+			if m.busy && m.cancelCurrent != nil {
+				m.cancelCurrent()
+				m.cancelCurrent = nil
+				m.busy = false
+				m.status = "CANCELLED"
+				m.messages = append(m.messages, "Current operation cancelled.")
+				m.refreshAgentMessages()
+				return m, nil
+			}
 			return m, tea.Quit
 		case tea.KeyEnter:
 			if m.busy {
@@ -451,13 +724,16 @@ func (m agentTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if prompt == "" {
 				return m, nil
 			}
+			m.promptHistory = append(m.promptHistory, prompt)
+			m.historyIndex = len(m.promptHistory)
+			m.historyDraft = ""
 			m.messages = append(m.messages, fmt.Sprintf("%s %s", lipgloss.NewStyle().Bold(true).Foreground(tuiAccentColor).Render("USER"), prompt))
 			m.addAgentHistory("user", prompt)
 			m.textarea.Reset()
 			m.busy = true
 			m.status = "PROCESSING"
 			m.refreshAgentMessages()
-			return m, tea.Batch(m.requestAgent(prompt), m.nextAgentTick())
+			return m, tea.Batch(m.requestAgent(m.beginOperation(), prompt), m.nextAgentTick())
 		}
 	}
 
@@ -484,16 +760,104 @@ func (m agentTUIModel) View() string {
 		if reason == "" {
 			reason = "No additional risk details were provided."
 		}
-		modal := tuiConfirmStyle.Width(maxInt(10, m.width-10)).Render(fmt.Sprintf("COMMAND REVIEW [%s]\n\nCommand:\n%s\n\nRisk: %s\n%s\n\n%s    %s", level, command, level, wrapAgentMessage(reason, maxInt(10, m.width-16)), tuiYesStyle.Render("[Y] Confirm"), tuiNoStyle.Render("[N] Abort")))
+		modal := tuiConfirmStyle.Width(maxInt(10, m.width-10)).Render(fmt.Sprintf("COMMAND REVIEW [%s]\n\nCommand:\n%s\n\nRisk: %s\n%s\n\n%s    %s\n[E] Edit    [C] Copy", level, command, level, wrapAgentMessage(reason, maxInt(10, m.width-16)), tuiYesStyle.Render("[Y] Run"), tuiNoStyle.Render("[N] Cancel")))
 		return lipgloss.JoinVertical(lipgloss.Left, header, content, modal)
+	}
+
+	if m.showToolConfirm && m.pendingTool != nil {
+		args := strings.Join(m.pendingToolArgs, " ")
+		modal := tuiConfirmStyle.Width(maxInt(10, m.width-10)).Render(fmt.Sprintf(
+			"PROX TOOL REVIEW\n\nTool: %s\n%s\n\nArguments: %s\n\n[Y] Allow    [N] Cancel",
+			m.pendingTool.Name,
+			m.pendingTool.Description,
+			args,
+		))
+		return lipgloss.JoinVertical(lipgloss.Left, header, renderAgentTabs(m.activeTab), content, modal)
+	}
+
+	tabs := renderAgentTabs(m.activeTab)
+	if m.activeTab != 0 {
+		selectedTool := "ai-config"
+		if m.activeTab == 2 {
+			selectedTool = "ai-sessions"
+		}
+		toolLines := []string{"Prox tool: " + selectedTool, ""}
+		for _, tool := range m.tools {
+			if tool.Name != selectedTool {
+				continue
+			}
+			toolLines = append(toolLines, tool.Name+"  "+tool.Description, "  "+tool.Usage)
+			toolLines = append(toolLines, "  Read-only actions can run directly. Changes require explicit approval.")
+		}
+		toolLines = append(toolLines, "", "Ask the agent to use this tool from the Chat tab.")
+		body := tuiChatStyle.Width(maxInt(10, m.width-4)).Height(m.viewport.Height).Render(wrapAgentMessage(strings.Join(toolLines, "\n"), maxInt(10, m.width-8)))
+		help := lipgloss.NewStyle().Foreground(tuiMutedColor).Render(" Tab / Shift+Tab switch tabs")
+		return lipgloss.JoinVertical(lipgloss.Left, header, tabs, body, help)
 	}
 
 	status := m.status
 	if m.busy {
-		status = "THINKING" + strings.Repeat(".", m.animation)
+		status += strings.Repeat(".", m.animation)
 	}
-	help := lipgloss.NewStyle().Foreground(tuiMutedColor).Render(fmt.Sprintf(" %s | Enter send | Esc quit", status))
-	return lipgloss.JoinVertical(lipgloss.Left, header, content, tuiInputStyle.Render(m.textarea.View()), help)
+	if m.editingCommand {
+		help := lipgloss.NewStyle().Foreground(tuiMutedColor).Render(" Editing proposed command | Enter reassess risk | Esc discard edits")
+		return lipgloss.JoinVertical(lipgloss.Left, header, content, tuiInputStyle.Render(m.textarea.View()), help)
+	}
+	help := lipgloss.NewStyle().Foreground(tuiMutedColor).Render(fmt.Sprintf(" %s | Enter send | Tab tool tabs | Ctrl+J newline | Ctrl+P/N history | Esc cancel/quit", status))
+	return lipgloss.JoinVertical(lipgloss.Left, header, tabs, content, tuiInputStyle.Render(m.textarea.View()), help)
+}
+
+func renderAgentTabs(active int) string {
+	labels := []string{"Chat", "ai-config", "ai-sessions"}
+	rendered := make([]string, len(labels))
+	for i, label := range labels {
+		tab := " " + label + " "
+		if i == active {
+			rendered[i] = tuiYesStyle.Render(tab)
+		} else {
+			rendered[i] = lipgloss.NewStyle().Foreground(tuiMutedColor).Render(tab)
+		}
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Left, rendered[0], " ", rendered[1], " ", rendered[2])
+}
+
+func findAgentTool(tools []AgentTool, name string) *AgentTool {
+	for i := range tools {
+		if strings.EqualFold(tools[i].Name, name) {
+			return &tools[i]
+		}
+	}
+	return nil
+}
+
+func parseAgentToolDirective(response string) (string, agentToolInvocation, bool, error) {
+	trimmed := strings.TrimSpace(strings.ReplaceAll(response, "\r", ""))
+	const marker = "PROX_TOOL:"
+	lines := strings.Split(trimmed, "\n")
+	markerIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), marker) {
+			markerIndex = index
+			break
+		}
+	}
+	if markerIndex < 0 {
+		return trimmed, agentToolInvocation{}, false, nil
+	}
+	line := strings.TrimSpace(lines[markerIndex])
+	line = strings.TrimSpace(line[len(marker):])
+	parts := strings.Fields(line)
+	if len(parts) == 0 {
+		return trimmed, agentToolInvocation{}, true, fmt.Errorf("empty Prox tool call")
+	}
+	var explanation []string
+	for index, responseLine := range lines {
+		if index == markerIndex {
+			continue
+		}
+		explanation = append(explanation, responseLine)
+	}
+	return strings.TrimSpace(strings.Join(explanation, "\n")), agentToolInvocation{name: parts[0], args: parts[1:]}, true, nil
 }
 
 func splitTUIAgentResponse(response string) (string, string, bool) {
@@ -598,6 +962,22 @@ func maxInt(left, right int) int {
 }
 
 func RunAgentTUI(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor) error {
+	return runAgentTUI(respond, execute, assessRisk, nil, nil)
+}
+
+func RunAgentTUIWithTools(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor, tools []AgentTool) error {
+	return runAgentTUI(respond, execute, assessRisk, nil, tools)
+}
+
+func RunAgentTUIWithSession(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor, session ChatSession) error {
+	return runAgentTUI(respond, execute, assessRisk, &session, nil)
+}
+
+func RunAgentTUIWithSessionAndTools(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor, session ChatSession, tools []AgentTool) error {
+	return runAgentTUI(respond, execute, assessRisk, &session, tools)
+}
+
+func runAgentTUI(respond AgentResponder, execute CommandExecutor, assessRisk CommandRiskAssessor, session *ChatSession, tools []AgentTool) error {
 	if respond == nil {
 		return fmt.Errorf("agent responder is required")
 	}
@@ -607,9 +987,44 @@ func RunAgentTUI(respond AgentResponder, execute CommandExecutor, assessRisk Com
 	if assessRisk == nil {
 		return fmt.Errorf("command risk assessor is required")
 	}
-	program := tea.NewProgram(newAgentTUIModel(respond, execute, assessRisk), tea.WithAltScreen())
-	if _, err := program.Run(); err != nil {
+	model := newAgentTUIModelWithTools(respond, execute, assessRisk, tools)
+	if session != nil {
+		model.restoreSession(*session)
+	}
+	program := tea.NewProgram(model, tea.WithAltScreen())
+	finalModel, err := program.Run()
+	if err != nil {
 		return fmt.Errorf("failed to start TUI: %w", err)
 	}
+	final, ok := finalModel.(agentTUIModel)
+	if !ok {
+		return fmt.Errorf("failed to save agent session: unexpected final model %T", finalModel)
+	}
+	if len(final.sessionMessages) > 0 {
+		store, err := NewHistoryStore()
+		if err != nil {
+			return err
+		}
+		if err := store.Save(ChatSession{ID: final.sessionID, Name: final.sessionName, Messages: final.sessionMessages}); err != nil {
+			return fmt.Errorf("save agent session: %w", err)
+		}
+	}
 	return nil
+}
+
+func (m *agentTUIModel) restoreSession(session ChatSession) {
+	m.sessionID = session.ID
+	m.sessionName = session.Name
+	m.sessionMessages = append([]HistoryMessage(nil), session.Messages...)
+	m.history = nil
+	m.messages = []string{"Resumed agent session: " + session.Name}
+	for _, message := range session.Messages {
+		agentMessage := AgentMessage{Role: message.Role, Content: message.Content}
+		m.addAgentContext(agentMessage)
+		if message.Role == "user" {
+			m.promptHistory = append(m.promptHistory, message.Content)
+		}
+		m.messages = append(m.messages, fmt.Sprintf("%s %s", strings.ToUpper(message.Role), message.Content))
+	}
+	m.historyIndex = len(m.promptHistory)
 }
